@@ -4,6 +4,8 @@
 #
 # Copyright (c) 2024 Ken McDonell.  All Rights Reserved.
 #
+# check-group-exclude: pmlogger_check pmlogger_daily
+#
 
 if [ $# -eq 0 ]
 then
@@ -52,7 +54,7 @@ _filter()
 	-e '/^-- No entries --$/d' \
 	-e '/^-- Journal begins at /d' \
 	-e '/^-- Logs begin at /d' \
-	-e '/: End: /d' \
+	-e '/: End[: ]/d' \
 	-e '/error while loading shared libraries: libpcp/d' \
 	-e '/rc\[[0-9]*]: .*pmpost:.* cannot open .*NOTICES/d' \
 	-e '/rc\[[0-9]*]: .*pmpost: unposted message:/d' \
@@ -65,12 +67,15 @@ _filter()
 		-e '/ Removing .* PMDA /d' \
 		-e '/ Rebuilding PMNS /d' \
 		-e '/pmcd\[[0-9]*]: .* pmdaopenmetrics([0-9]*) Info:/d' \
+		-e '/pmcd\[[0-9]*]: .* pmdaopentelemetry([0-9]*) Info:/d' \
 		-e '/pmcd\[[0-9]*]: \.*$/d' \
 		-e '/pmcd\[[0-9]*]: .*\.\.done$/d' \
-		-e '/pmcd\[[0-9]*]: Terminated$/d' \
+		-e '/pmcd\[[0-9]*]: Terminated/d' \
 		-e '/root\[[0-9]*]: pmcd_wait failed in /d' \
 		-e '/pmcd\[[0-9]*]: _pmda_setup: Interrupted!/d' \
 		-e '/pmcd\[[0-9]*]: _pmda_setup_cleanup: reset \.NeedInstall/d' \
+		-e '/pmcd\[[0-9]*]: .*\/pmcd: .* cannot start pmcd/d' \
+		-e '/systemctl\[[0-9]*]: .* pmcd\.service changed on disk/d' \
 	    #end
 	    ;;
 
@@ -89,6 +94,7 @@ _filter()
 	    # and pmie_check will fail during PCP builds
 	    # and this strange one but only on vm03
 	    # ... vm03.localdomain pmiectl[1013253]: mount: write error
+	    # and then just random QA noise
 	    #
 	    sed \
 		-e '/ pcp-pmie\[/d' \
@@ -104,6 +110,7 @@ _filter()
 		-e '/pmie_daily failed - see .*\/pmie_daily.log/d' \
 		-e '/pmiectl\[[0-9]*]: .* (localhost) defined multiple times,/d' \
 		-e '/ pmiectl\[[0-9]*]: mount: write error/d' \
+		-e '/pcp\[[0-9]*]: pmie_check start failed in/d' \
 	    # end
 	    ;;
 
@@ -111,21 +118,25 @@ _filter()
 	    # sudo babble
 	    # and pmlogger_check will fail during PCP builds
 	    # and pmlogger_daily will fail during PCP builds
+	    # and pmlogger_janitor will fail during PCP builds
 	    # and qa/1210 and qa/1213
+	    # and lock collision with pmlogctl from pmlogger_farm_check
 	    # and this strange one but only on bozo and vm03
 	    # ... bozo.localdomain pmlogctl[1013253]: mount: write error
 	    # and fallout from qa/1213 if pmlogger_farm_check goes off
 	    # concurrently
-	    #
+	    # and then just random QA noise
 	    sed \
 		-e '/sudo\[[0-9]*]: /d' \
 		-e '/pmlogger_check failed - see .*\/pmlogger_check.log/d' \
 		-e '/pmlogger_daily failed - see .*\/pmlogger_daily.log/d' \
 		-e '/pmlogger_daily failed - see .*\/pmlogger_daily-K.log/d' \
+		-e '/pmlogger_janitor failed - see .*\/pmlogger_janitor.log/d' \
 		-e '/pmlogctl\[[0-9]*]: .* failed to start for host no\.such\.host\.pcp\.io/d' \
 		-e '/pmlogctl\[[0-9]*]: .* is another pmlogctl job running concurrently?/d' \
 		-e '/pmlogctl\[[0-9]*]: .*\/pmlogger\/lock$/d' \
 		-e '/pmlogctl\[[0-9]*]: .* failed to acquire exclusive lock/d' \
+		-e '/pmlogctl\[[0-9]*]: [0-9][0-9]* pmlogctl/d' \
 		-e '/pmlogctl\[[0-9]*]: Terminated$/d' \
 		-e '/ pmlogctl\[[0-9]*]: mount: write error/d' \
 		-e '/vm03 pmlogctl\[[0-9]*]: mount: write error/d' \
@@ -135,6 +146,7 @@ _filter()
 		-e '/rc\[[0-9]*]: .*run the following as root:/d' \
 		-e '/rc\[[0-9]*]: .*systemctl enable pmlogger\.service/d' \
 		-e '/rc\[[0-9]*]: .*\/pmsignal: .* No such process/d' \
+		-e '/pcp\[[0-9]*]: pmlogger_check_failed in/d' \
 	    # end
 	    ;;
 

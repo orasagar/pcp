@@ -1,15 +1,25 @@
 #!/bin/sh
 #
-# generate control preamble from control.pcp
+# generate control preamble from PCP-parameterized control stanza
+# file ($1)
 #
 tmp=/var/tmp/fixcontrol-$$
-trap "rm -f $tmp.*; exit 0" 0 1 2 3 15
+sts=0
+trap "rm -f $tmp.*; exit \$sts" 0 1 2 3 15
+
+if [ $# -ne 1 ]
+then
+    echo >&2 "Usage: fixcontrol input-control-file"
+    sts=1
+    exit
+fi
+
+echo 's/$/ /' >$tmp.sed
 
 # dh-python not always available ... this is not checked for in configure
 # so have to base it on the platform type and version
 #
 rm -f $tmp.no
-
 if [ -f /etc/os-release ]
 then
     NAME=`sed -n -e 's/"//'g -e '/^NAME=/s/NAME=//p' </etc/os-release`
@@ -42,9 +52,6 @@ then
 	    ;;
     esac
 fi
-
-echo 's/$/ /' >$tmp.sed
-
 if [ -f $tmp.no ]
 then
     echo 's/?{dh-python}, //' >>$tmp.sed
@@ -71,16 +78,18 @@ fi
 
 if $PMDA_INFINIBAND
 then
+    echo 's/?{libibverbs-dev}, /libibverbs-dev, /' >>$tmp.sed
     echo 's/?{libibumad-dev}, /libibumad-dev, /' >>$tmp.sed
     echo 's/?{libibmad-dev}, /libibmad-dev, /' >>$tmp.sed
 else
+    echo 's/?{libibverbs-dev}, //' >>$tmp.sed
     echo 's/?{libibumad-dev}, //' >>$tmp.sed
     echo 's/?{libibmad-dev}, //' >>$tmp.sed
 fi
 
 if $PMDA_BCC
 then
-    echo 's/?{python-bpfcc}, /python3-bpfcc [amd64 arm64 armhf ppc64el s390x ppc64], /' >>$tmp.sed
+    echo 's/?{python-bpfcc}, /python3-bpfcc [amd64 arm64 armhf s390x ppc64], /' >>$tmp.sed
 else
     echo 's/?{python-bpfcc}, //' >>$tmp.sed
 fi
@@ -96,11 +105,9 @@ if $PMDA_BPF
 then
     echo 's/?{clang}, /clang, /' >>$tmp.sed
     echo 's/?{llvm}, /llvm, /' >>$tmp.sed
-    echo 's/?{libbpf-dev}, /libbpf-dev (>= 0.8.0), /' >>$tmp.sed
 else
     echo 's/?{clang}, //' >>$tmp.sed
     echo 's/?{llvm}, //' >>$tmp.sed
-    echo 's/?{libbpf-dev}, //' >>$tmp.sed
 fi
 
 if $PMDA_POSTGRESQL
@@ -115,10 +122,31 @@ else
     echo 's/?{python-psycopg2}, //' >>$tmp.sed
 fi
 
-# PMDA_SYSTEMD is only true if we have libsystemd, but HAVE_SYSTEMD
-# may be true when we're using systemd even if libsystemd is not
-# installed ... so use the former to enable the [lib]systemd-dev in
-# the Build-Depends: clause
+if $ENABLE_SYSTEMD
+then
+    # this is a pain ...
+    # /usr/share/pkgconfig/systemd.pc is the file configure needs
+    # but that's in different packages for different platforms try
+    # and suss out the package, but if that fails simply omit any
+    # related package from the Build-Depends: clause
+    #
+    if [ -f /usr/share/pkgconfig/systemd.pc ]
+    then
+	pkg=`dpkg-query -S /usr/share/pkgconfig/systemd.pc 2>/dev/null | sed -e 's/: .*//'`
+	if [ -n "$pkg" ]
+	then
+	    echo "s/?{systemd-pkgconfig}, /$pkg, /" >>$tmp.sed
+	else
+	    echo 's/?{systemd-pkgconfig}, //' >>$tmp.sed
+	fi
+    else
+	echo 's/?{systemd-pkgconfig}, //' >>$tmp.sed
+    fi
+else
+    echo 's/?{systemd-pkgconfig}, //' >>$tmp.sed
+fi
+
+# PMDA_SYSTEMD is only true if we have libsystemd ...
 # Note: that the HAVE_SYSTEMD_SD_DAEMON_H macro that is used to
 # guard the use of libsystemd from libpcp is not available here, but
 # the semantics of HAVE_SYSTEMD_SD_DAEMON_H and PMDA_SYSTEMD are
@@ -126,28 +154,23 @@ fi
 #
 if $PMDA_SYSTEMD
 then
-    echo 's/?{libsystemd-dev}, /systemd, systemd-dev | libsystemd-dev, /' >>$tmp.sed
+    echo 's/?{libsystemd-dev}, /libsystemd-dev, /' >>$tmp.sed
 else
     echo 's/?{libsystemd-dev}, //' >>$tmp.sed
 fi
 
-echo 's/?{python-dev}, //' >>$tmp.sed
-echo 's/?{python-all}, //' >>$tmp.sed
 
 if $ENABLE_PYTHON3
 then
-    echo 's/?{python-pcp}, /python3-pcp, /' >>$tmp.sed
     echo 's/?{python}, /python3, /' >>$tmp.sed
+    echo 's/?{python-all}, /python3-all, /' >>$tmp.sed
+    echo 's/?{python-dev}, /python3-dev, /' >>$tmp.sed
+    echo 's/?{python-pcp}, /python3-pcp, /' >>$tmp.sed
 else
-    echo 's/?{python-pcp}, //' >>$tmp.sed
     echo 's/?{python}, //' >>$tmp.sed
-fi
-
-if $HAVE_PYTHON_JSONPOINTER
-then
-    echo 's/?{python-json-pointer}, /python3-json-pointer, /' >>$tmp.sed
-else
-    echo 's/?{python-json-pointer}, //' >>$tmp.sed
+    echo 's/?{python-all}, //' >>$tmp.sed
+    echo 's/?{python-dev}, //' >>$tmp.sed
+    echo 's/?{python-pcp}, //' >>$tmp.sed
 fi
 
 if $HAVE_PYTHON_OPENPYXL
@@ -216,7 +239,6 @@ then
     echo 's/?{libdbd-mysql-perl}, /libdbd-mysql-perl, /' >>$tmp.sed
     echo 's/?{libextutils-autoinstall-perl}, /libextutils-autoinstall-perl, /' >>$tmp.sed
     echo 's/?{libxml-tokeparser-perl}, /libxml-tokeparser-perl, /' >>$tmp.sed
-    echo 's/?{librrds-perl}, /librrds-perl, /' >>$tmp.sed
     echo 's/?{libjson-perl}, /libjson-perl, /' >>$tmp.sed
     echo 's/?{libwww-perl}, /libwww-perl, /' >>$tmp.sed
     echo 's/?{libnet-snmp-perl}, /libnet-snmp-perl, /' >>$tmp.sed
@@ -226,7 +248,6 @@ else
     echo 's/?{libdbd-mysql-perl}, //' >>$tmp.sed
     echo 's/?{libextutils-autoinstall-perl}, //' >>$tmp.sed
     echo 's/?{libxml-tokeparser-perl}, //' >>$tmp.sed
-    echo 's/?{librrds-perl}, //' >>$tmp.sed
     echo 's/?{libjson-perl}, //' >>$tmp.sed
     echo 's/?{libwww-perl}, //' >>$tmp.sed
     echo 's/?{libnet-snmp-perl}, //' >>$tmp.sed
@@ -320,17 +341,6 @@ else
     echo 's/?{python-urllib3}, //' >>$tmp.sed
 fi
 
-# build needs python3-six and python3-json-pointer and
-# OrderedDict module (from libpython that will be there)
-# for json PMDA
-# - python3-six done above for $HAVE_PYTHON_SIX
-# - python3-json-pointer done above for $HAVE_PYTHON_JSONPOINTER
-#
-if $PMDA_JSON
-then
-    :
-fi
-
 # build needs libdbi-perl and libdbd-mysql-perl for mysql and
 # oracle PMDA
 # -libdbd-mysql-perl done above for $HAVE_PERL
@@ -393,7 +403,56 @@ else
     echo 's/?{libsystemd-dev}, //' >>$tmp.sed
 fi
 
+# add perl-xs-dev to Build-Depends for trixie or later (closes: #1102849)
+#
+rm -f $tmp.yes
+if [ -f /etc/os-release ]
+then
+    NAME=`sed -n -e 's/"//'g -e '/^NAME=/s/NAME=//p' </etc/os-release`
+    if [ "$NAME" = "Debian GNU/Linux" ]
+    then
+	VERSION_ID=`sed -n -e 's/"//'g -e '/^VERSION_ID=/s/VERSION_ID=//p' </etc/os-release`
+	# trixie is 13
+	#
+	[ "$VERSION_ID" -ge 13 ] && touch $tmp.yes
+    elif [ "$NAME" = "Ubuntu" ]
+    then
+	VERSION_ID=`sed -n -e 's/"//'g -e '/^VERSION_ID=/s/VERSION_ID=//p' </etc/os-release`
+	# Ubuntu 24.04 is trixie-based
+	#
+	[ `echo $VERSION_ID | sed -e 's/\.//'` -ge 2404 ] && touch $tmp.yes
+    fi
+elif [ -f /etc/debian_version ]
+then
+    VERSION_ID=`cat /etc/debian_version`
+    [ "$VERSION_ID" -ge 13 ] && touch $tmp.yes
+fi
+if [ -f $tmp.yes ]
+then
+    echo 's/?{perl-xs-dev}, /perl-xs-dev, /' >>$tmp.sed
+else
+    echo 's/?{perl-xs-dev}, //' >>$tmp.sed
+fi
+
 echo 's/ $//' >>$tmp.sed
-sed -f $tmp.sed <control.pcp >$tmp.out
-diff -u control.pcp $tmp.out >&2
+sed -f $tmp.sed <"$1" >$tmp.out
+diff -u "$1" $tmp.out >&2
 cat $tmp.out
+
+# add transitional packages for (incorrect) Ubuntu package renaming
+#
+if [ -f /etc/os-release ]
+then
+    NAME=`sed -n -e 's/"//'g -e '/^NAME=/s/NAME=//p' </etc/os-release`
+    if [ "$NAME" = "Ubuntu" ]
+    then
+	if grep -q 'Package: libpcp3t64' control 2>/dev/null
+	then
+	    # but do it only once and already done apparenty
+	    #
+	    :
+	else
+	    cat control.ubuntu
+	fi
+    fi
+fi

@@ -27,6 +27,74 @@ extern char     prependenv;
 extern regex_t  envregex;
 
 /*
+** sort all processes and threads by TGID (thread group ID),
+** ensuring parent entry (PID=TGID) is first.
+ */
+static int
+thread_group_sorter(const void *a, const void *b)
+{
+	struct tstat	*ta = (struct tstat *)a;
+	struct tstat	*tb = (struct tstat *)b;
+	int		int_a, int_b;
+
+	if (ta->gen.tgid < tb->gen.tgid)
+		return -1;
+	if (ta->gen.tgid > tb->gen.tgid)
+		return 1;
+
+	int_a = (ta->gen.pid == ta->gen.tgid);
+	int_b = (tb->gen.pid == tb->gen.tgid);
+
+	if (int_a && !int_b)
+		return -1;
+	if (!int_a && int_b)
+		return 1;
+
+	return 0;
+}
+
+static void
+thread_cpu_accumulation(struct tstat **tasks, int count)
+{
+	struct tstat	*parent = NULL;
+	struct tstat	*current;
+	int64_t		cpu_use_utime = 0, cpu_use_stime = 0;
+
+	qsort(*tasks, count, sizeof(struct tstat), thread_group_sorter);
+
+	for (int i=0; i < count; i++)
+	{
+		current = &(*tasks)[i];
+
+		if (parent == NULL)
+		{
+			parent = current;
+			cpu_use_utime = current->cpu.utime;
+			cpu_use_stime = current->cpu.stime;
+		}
+		else if (parent->gen.tgid != current->gen.tgid)
+		{
+			parent->cpu.utime = cpu_use_utime;
+			parent->cpu.stime = cpu_use_stime;
+			parent = current;
+			cpu_use_utime = current->cpu.utime;
+			cpu_use_stime = current->cpu.stime;
+		}
+		else
+		{
+			cpu_use_utime += current->cpu.utime;
+			cpu_use_stime += current->cpu.stime;
+		}
+	}
+	// handle last thread group accumulation
+	if (parent)
+	{
+		parent->cpu.utime = cpu_use_utime;
+		parent->cpu.stime = cpu_use_stime;
+	}
+}
+
+/*
 ** store the full command line
 **
 ** the command line may be prepended by environment variables
@@ -95,9 +163,9 @@ proccmd(struct tstat *task, int pid, char *name, pmResult *rp, pmDesc *dp, int o
 static void
 update_task(struct tstat *task, int pid, char *name, pmResult *rp, pmDesc *dp, int offset)
 {
-	int key;
-	char buf[32];
-	char cgname[CGRLEN+2];
+	int		key;
+	char		buf[32];
+	char		cgname[CGRLEN+2];
 
 	memset(task, 0, sizeof(struct tstat));
 
@@ -364,6 +432,8 @@ photoproc(struct tstat **tasks, unsigned long *taskslen)
 		offset = get_instance_index(result, TASK_GEN_PID, pids[i]);
 		update_task(&(*tasks)[i], pids[i], insts[i], result, descs, offset);
 	}
+
+	thread_cpu_accumulation(tasks, count);
 
 	if (supportflags & NETATOP)
 		netproc_update_tasks(tasks, count);

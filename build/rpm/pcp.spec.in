@@ -63,11 +63,7 @@ BuildRequires: make
 BuildRequires: gcc gcc-c++
 BuildRequires: procps autoconf bison flex
 
-%if 0%{?sles_version} == 11
-# rpmbuild is in the rpm (not rpm-build) package for SLES11
-%else
 BuildRequires: rpm-build
-%endif
 
 %if "@enable_avahi@" == "true"
 BuildRequires: avahi-devel
@@ -82,9 +78,6 @@ BuildRequires: %{_lib}sasl-devel
 %else
 BuildRequires: cyrus-sasl-devel
 %endif
-%endif
-%if "@enable_probes@" == "true"
-BuildRequires: systemtap-sdt-devel
 %endif
 %if "@enable_qt@" == "true"
 BuildRequires: gcc-c++
@@ -132,7 +125,7 @@ BuildRequires: ncurses-devel
 BuildRequires: readline-devel
 
 # Utilities used indirectly e.g. by scripts we install
-Requires: bash xz gawk sed grep coreutils diffutils findutils
+Requires: bash xz zstd gawk sed grep coreutils diffutils findutils
 %if "%{_vendor}" == "redhat"
 Requires: %{_hostname_executable} %{_ps_executable}
 %endif
@@ -186,12 +179,29 @@ Requires: initscripts
 %global pmda_remove() %{expand:
 if [ %1 -eq 0 ]
 then
+    # %1 (#pkgs remaining after action) == 0 => this is an uninstall, see
+    # https://docs.fedoraproject.org/en-US/packaging-guidelines/Scriptlets/
     PCP_PMDAS_DIR=@pcp_pmdas_dir@
     PCP_PMCDCONF_PATH=@pcp_pmcdconf_path@
-    if [ -f "$PCP_PMCDCONF_PATH" -a -f "$PCP_PMDAS_DIR/%2/domain.h" ]
+    if [ -d "$PCP_PMDAS_DIR/%2/" ]
     then
-	(cd "$PCP_PMDAS_DIR/%2/" && ./Remove >/dev/null 2>&1)
+	here=`pwd`
+	if cd "$PCP_PMDAS_DIR/%2/"
+	then
+	    if [ -f "$PCP_PMCDCONF_PATH" -a -f "domain.h" ]
+	    then
+		./Remove >/dev/null 2>&1
+	    fi
+	    rm -f domain.h domain.h.perl domain.h.python
+	    rm -f pmns pmns.perl pmns.python
+	    rm -f help.dir help.pag
+	    rm -f *.o
+	    cd $here
+	fi
     fi
+    # avoid error when run as %preun and PMDA is not configured for
+    # use by pmcd
+    exit 0
 fi
 }
 
@@ -226,6 +236,11 @@ Requires: pcp-selinux = @package_version@
 %endif
 
 Requires: pcp-libs = @package_version@
+
+%if 0%{?suse_version} == 1600
+Provides: user(pcp)
+Provides: group(pcp)
+%endif
 
 %description
 Performance Co-Pilot (PCP) provides a framework and services to support
@@ -262,6 +277,17 @@ Obsoletes: pcp < 3.0
 # prevent conflicting library (libpcp.so.N) installation
 Conflicts: postgresql-pgpool-II
 
+# if upgrading from an existing openSUSE installation replace their
+# libpcp* packages
+Obsoletes: libpcp3 < @package_version@ libpcp4 < @package_version@
+Provides: libpcp3 = @package_version@ libpcp4 = @package_version@
+Obsoletes: libpcp_gui2 < @package_version@ libpcp_import1 < @package_version@
+Provides: libpcp_gui2 = @package_version@ libpcp_import1 = @package_version@
+Obsoletes: libpcp_mmv1 < @package_version@ libpcp_trace2 < @package_version@
+Provides: libpcp_mmv1 = @package_version@ libpcp_trace2 = @package_version@
+Obsoletes: libpcp_web1 < @package_version@
+Provides: libpcp_web1 = @package_version@
+
 %description libs
 Performance Co-Pilot (PCP) run-time libraries
 
@@ -275,6 +301,11 @@ URL: https://pcp.io
 
 # prevent conflicting library (libpcp.so) installation
 Conflicts: postgresql-pgpool-II-devel
+
+# if upgrading from an existing openSUSE installation replace their
+# libpcp-devel package
+Obsoletes: libpcp-devel < @package_version@
+Provides: libpcp-devel = @package_version@
 
 %description libs-devel
 Performance Co-Pilot (PCP) headers for development.
@@ -309,6 +340,11 @@ Requires: bc gcc gzip bzip2
 Requires: selinux-policy-devel
 Requires: selinux-policy-targeted
 Requires: setools-console
+%endif
+
+%if 0%{?suse_version} == 1600
+Provides: user(pcpqa)
+Provides: group(pcpqa)
 %endif
 
 %description testsuite
@@ -455,6 +491,39 @@ into standard PCP archive logs for replay with any PCP monitoring tool.
 
 %if "@have_python@" == "true"
 #
+# pcp-pmda-hdb
+#
+%package pmda-hdb
+License: GPL-3.0-or-later
+Summary: Performance Co-Pilot (PCP) metrics for SAP HANA databases
+URL: https://pcp.io
+Requires: pcp = @package_version@ pcp-libs = @package_version@
+Requires: python3-pcp
+%if 0%{?rhel} > 8 || 0%{?fedora} > 0
+Requires: python3-packaging
+%endif
+%description pmda-hdb
+This package provides a PMDA to export metric values about a SAP HANA
+database (https://www.sap.com/products/data-cloud/hana.html).
+#end pcp-pmda-hdb
+
+#
+# pcp-import-benchmarks
+#
+%package import-benchmarks
+License: LGPL-2.1-or-later
+Summary: Performance Co-Pilot tools importing benchmark results into PCP archive logs
+URL: https://pcp.io
+Requires: pcp-libs = %{version}-%{release}
+Requires: python3-pcp = @package_version@
+Obsoletes: pcp-import-guidellm2pcp <= 7.0.2
+Provides: pcp-import-guidellm2pcp = %{version}-%{release}
+
+%description import-benchmarks
+Performance Co-Pilot (PCP) front-end tools for importing JSON benchmark
+results files into PCP archives for replay with PCP analysis tools.
+
+#
 # pcp-import-pmseries
 #
 %package import-pmseries
@@ -587,6 +656,21 @@ Requires: python3-pcp = @package_version@
 %description export-pcp2openmetrics
 Performance Co-Pilot (PCP) front-end tools for exporting metric values
 in OpenMetrics (https://openmetrics.io/) format.
+
+#
+# pcp-export-pcp2opentelemetry
+#
+%package export-pcp2opentelemetry
+License: GPL-2.0-or-later
+Summary: Performance Co-Pilot tools for exporting PCP metrics in OpenTelemetry format
+URL: https://pcp.io
+Requires: pcp-libs >= @package_version@
+Requires: python3-pcp = @package_version@
+Obsoletes: pcp-pmda-json <= 7.0.0
+
+%description export-pcp2opentelemetry
+Performance Co-Pilot (PCP) front-end tools for exporting metric values
+in OpenTelemetry (https://opentelemetry.io/) format.
 
 #
 # pcp-export-pcp2spark
@@ -764,13 +848,16 @@ BuildRequires: setools-console
 BuildRequires: setools
 %endif
 Requires: policycoreutils selinux-policy-targeted
-%if "%{_vendor}" == "suse"
-# no libsemanage for SuSE other than libsemanage1 for OpenSuSE 12
+%if 0%{?suse_version} >= 1600
+# libsemanage2 for OpenSUSE 16
+Requires: libsemanage2
+%else
 %if 0%{?suse_version} >= 1200
+# libsemanage1 for OpenSUSE 12
 Requires: libsemanage1
-%endif
 %else
 Requires: libsemanage
+%endif
 %endif
 
 %description selinux
@@ -872,7 +959,11 @@ Summary: Performance Co-Pilot (PCP) metrics from statsd
 URL: https://pcp.io
 Requires: pcp = @package_version@ pcp-libs = @package_version@
 Requires: chan HdrHistogram_c
-BuildRequires: ragel chan-devel HdrHistogram_c-devel
+BuildRequires: chan-devel HdrHistogram_c-devel
+# ragel unavailable on some RHEL and CentOS Stream platforms
+%if 0%{?rhel} == 0
+BuildRequires: ragel
+%endif
 
 %description pmda-statsd
 This package contains the PCP Performance Metrics Domain Agent (PMDA) for
@@ -1253,7 +1344,11 @@ Summary: Performance Co-Pilot (PCP) metrics for the Postfix (MTA)
 URL: https://pcp.io
 Requires: pcp = @package_version@ pcp-libs = @package_version@
 Requires: perl-PCP-PMDA = @package_version@
+%if 0%{?suse_version} >= 1600
+Requires: perl
+%else
 Requires: perl-Time-HiRes
+%endif
 %if 0%{?fedora} > 16 || 0%{?rhel} > 5
 Requires: postfix-perl-scripts
 %endif
@@ -1389,12 +1484,7 @@ License: Apache-2.0 AND GPL-2.0-or-later
 Summary: Performance Co-Pilot (PCP) metrics from eBPF ELF modules
 URL: https://pcp.io
 Requires: pcp = @package_version@ pcp-libs = @package_version@
-%if 0%{?sle_version} >= 150500
-Requires: libbpf1
-%else
-Requires: libbpf
-%endif
-BuildRequires: libbpf-devel clang llvm
+BuildRequires: clang llvm
 %description pmda-bpf
 This package contains the PCP Performance Metrics Domain Agent (PMDA) for
 extracting performance metrics from eBPF ELF modules.
@@ -1641,7 +1731,7 @@ Requires: python3-pcp python3-lxml
 %if "%{_vendor}" == "suse"
 Requires: python3-libvirt-python
 %else
-%if 0%{?centos_ver} == 7
+%if 0%{?rhel} == 7
 Requires: python36-libvirt
 %else
 Requires: libvirt-python3
@@ -1707,22 +1797,21 @@ extracting metrics from OpenMetrics (https://openmetrics.io/) endpoints.
 #end pcp-pmda-openmetrics
 %endif
 
-%if "@pmda_json@" == "true"
+%if "@pmda_opentelemetry@" == "true"
 #
-# pcp-pmda-json
+# pcp-pmda-opentelemetry
 #
-%package pmda-json
+%package pmda-opentelemetry
 License: GPL-2.0-or-later
-Summary: Performance Co-Pilot (PCP) metrics for JSON data
+Summary: Performance Co-Pilot (PCP) metrics from OpenTelemetry endpoints
 URL: https://pcp.io
 Requires: pcp = @package_version@ pcp-libs = @package_version@
-Requires: python3-pcp
-Requires: python3-jsonpointer
-Requires: python3-six
-%description pmda-json
+Requires: python3-pcp = @package_version@
+Requires: python3-requests
+%description pmda-opentelemetry
 This package contains the PCP Performance Metrics Domain Agent (PMDA) for
-collecting metrics output in JSON.
-# end pcp-pmda-json
+extracting metrics from OpenTelemetry (https://opentelemetry.io//) endpoints.
+#end pcp-pmda-opentelemetry
 %endif
 
 #
@@ -2034,7 +2123,6 @@ extracting performance metrics from AMDGPU devices.
 # end pcp-pmda-amdgpu
 %endif
 
-
 %package zeroconf
 License: GPL-2.0-or-later
 Summary: Performance Co-Pilot (PCP) Zeroconf Package
@@ -2043,11 +2131,20 @@ Requires: pcp = @package_version@ pcp-libs = @package_version@
 Requires: pcp-system-tools = @package_version@
 Requires: pcp-doc = @package_version@
 Requires: pcp-pmda-dm = @package_version@
+%if "@pmda_bpf@" == "true"
+Requires: pcp-pmda-bpf = @package_version@
+%endif
+%if "@pmda_bpftrace@" == "true"
+Requires: pcp-pmda-bpftrace = @package_version@
+%endif
 %if "@have_python@" == "true"
 Requires: pcp-pmda-nfsclient = @package_version@
 %endif
 %if "@pmda_openmetrics@" == "true"
 Requires: pcp-pmda-openmetrics = @package_version@
+%endif
+%if "@pmda_opentelemetry@" == "true"
+Requires: pcp-pmda-opentelemetry = @package_version@
 %endif
 %description zeroconf
 This package contains configuration tweaks and files to increase metrics
@@ -2086,20 +2183,41 @@ rm -f $DIST_MANIFEST $DIST_TMPFILES
 
 PCP_GUI='pmchart|pmconfirm|pmdumptext|pmmessage|pmquery|pmsnap|pmtime'
 
-%if 0%{?fedora} > 26
+%if 0%{?rhel} || 0%{?fedora}
+# Fedora and RHEL default local only access for pmcd, pmproxy and pmlogger
 if [ "$1" -eq 1 ]
 then
-sed -i 's/^\#\ PMLOGGER_LOCAL.*/PMLOGGER_LOCAL=1/g' "$RPM_BUILD_ROOT/$PCP_SYSCONFIG_DIR/pmlogger"
-sed -i 's/^\#\ PMCD_LOCAL.*/PMCD_LOCAL=1/g' "$RPM_BUILD_ROOT/$PCP_SYSCONFIG_DIR/pmcd"
+    sed -i -e '/^# .*_LOCAL=1/s/^# //' $RPM_BUILD_ROOT/$PCP_SYSCONFIG_DIR/{pmcd,pmproxy,pmlogger}
 fi
 %endif
 
 PCP_CONF=$BACKDIR/src/include/pcp.conf
 export PCP_CONF
 . $BACKDIR/src/include/pcp.env
-CFGFILELIST=`ls -1 $BACKDIR/debian/pcp-conf.{install,dirs}`
-LIBFILELIST=`ls -1 $BACKDIR/debian/lib*.{install,dirs} | grep -F -v -- -dev.`
-DEVFILELIST=`ls -1 $BACKDIR/debian/lib*-dev.{install,dirs}`
+CFGFILELIST=''
+for f in `echo $BACKDIR/debian/pcp-conf.{install,dirs}`
+do
+    [ -f "$f" ] && CFGFILELIST="$CFGFILELIST $f"
+done
+LIBFILELIST=''
+for f in `echo $BACKDIR/debian/lib*.{install,dirs}`
+do
+    case "$f"
+    in
+	*-dev.*)
+		# skip libpcp<foo>-dev.{install,dirs} ones, they'll
+		# be collected in $DEVFILELIST
+		;;
+	*)
+		[ -f "$f" ] && LIBFILELIST="$LIBFILELIST $f"
+		;;
+    esac
+done
+DEVFILELIST=''
+for f in `echo $BACKDIR/debian/lib*-dev.{install,dirs}`
+do
+    [ -f "$f" ] && DEVFILELIST="$DEVFILELIST $f"
+done
 
 # Package split: pcp{-conf,-libs,-libs-devel,-testsuite,-import-*,-export-*}...
 # The above list is ordered by file selection; files for each package are
@@ -2185,6 +2303,8 @@ basic_manifest | keep 'iostat2pcp' >pcp-import-iostat2pcp-files
 basic_manifest | keep 'sheet2pcp' >pcp-import-sheet2pcp-files
 basic_manifest | keep 'mrtg2pcp' >pcp-import-mrtg2pcp-files
 basic_manifest | keep 'ganglia2pcp' >pcp-import-ganglia2pcp-files
+basic_manifest | keep 'guidellm2pcp' >pcp-import-benchmarks-files
+basic_manifest | keep 'vllmbench2pcp' >pcp-import-benchmarks-files
 basic_manifest | keep 'collectl2pcp' >pcp-import-collectl2pcp-files
 basic_manifest | keep 'pcp2arrow' >pcp-export-pcp2arrow-files
 basic_manifest | keep 'pcp2elasticsearch' >pcp-export-pcp2elasticsearch-files
@@ -2193,6 +2313,7 @@ basic_manifest | keep 'pcp2xlsx' >pcp-export-pcp2xlsx-files
 basic_manifest | keep 'pcp2graphite' >pcp-export-pcp2graphite-files
 basic_manifest | keep 'pcp2json' >pcp-export-pcp2json-files
 basic_manifest | keep 'pcp2openmetrics' >pcp-export-pcp2openmetrics-files
+basic_manifest | keep 'pcp2opentelemetry' >pcp-export-pcp2opentelemetry-files
 basic_manifest | keep 'pcp2spark' >pcp-export-pcp2spark-files
 basic_manifest | keep 'pcp2xml' >pcp-export-pcp2xml-files
 basic_manifest | keep 'pcp2zabbix' >pcp-export-pcp2zabbix-files
@@ -2222,8 +2343,8 @@ basic_manifest | keep '(etc/pcp|pmdas)/gpfs(/|$)' >pcp-pmda-gpfs-files
 basic_manifest | keep '(etc/pcp|pmdas)/gpsd(/|$)' >pcp-pmda-gpsd-files
 basic_manifest | keep '(etc/pcp|pmdas)/hacluster(/|$)' >pcp-pmda-hacluster-files
 basic_manifest | keep '(etc/pcp|pmdas)/haproxy(/|$)' >pcp-pmda-haproxy-files
+basic_manifest | keep '(etc/pcp|pmdas)/hdb(/|$)' >pcp-pmda-hdb-files
 basic_manifest | keep '(etc/pcp|pmdas)/infiniband(/|$)' >pcp-pmda-infiniband-files
-basic_manifest | keep '(etc/pcp|pmdas)/json(/|$)' >pcp-pmda-json-files
 basic_manifest | keep '(etc/pcp|pmdas)/libvirt(/|$)' >pcp-pmda-libvirt-files
 basic_manifest | keep '(etc/pcp|pmdas)/lio(/|$)' >pcp-pmda-lio-files
 basic_manifest | keep '(etc/pcp|pmdas)/lmsensors(/|$)' >pcp-pmda-lmsensors-files
@@ -2246,6 +2367,7 @@ basic_manifest | keep '(etc/pcp|pmdas)/nginx(/|$)' >pcp-pmda-nginx-files
 basic_manifest | keep '(etc/pcp|pmdas)/nutcracker(/|$)' >pcp-pmda-nutcracker-files
 basic_manifest | keep '(etc/pcp|pmdas)/nvidia(/|$)' >pcp-pmda-nvidia-files
 basic_manifest | keep '(etc/pcp|pmdas)/openmetrics(/|$)' >pcp-pmda-openmetrics-files
+basic_manifest | keep '(etc/pcp|pmdas)/opentelemetry(/|$)' >pcp-pmda-opentelemetry-files
 basic_manifest | keep '(etc/pcp|pmdas|pmieconf)/openvswitch(/|$)' >pcp-pmda-openvswitch-files
 basic_manifest | keep '(etc/pcp|pmdas)/oracle(/|$)' >pcp-pmda-oracle-files
 basic_manifest | keep '(etc/pcp|pmdas)/pdns(/|$)' >pcp-pmda-pdns-files
@@ -2285,14 +2407,13 @@ for pmda_package in \
     elasticsearch \
     farm \
     gfs2 gluster gpfs gpsd \
-    hacluster haproxy \
+    hacluster haproxy hdb \
     infiniband \
-    json \
     libvirt lio lmsensors logger lustre lustrecomm \
     mailq memcache mic mounts mongodb mssql mysql \
     named netcheck netfilter news nfsclient nginx \
     nutcracker nvidia \
-    openmetrics openvswitch oracle \
+    openmetrics opentelemetry openvswitch oracle \
     pdns perfevent podman postfix postgresql \
     rabbitmq redis resctrl rocestat roomtemp rsyslog \
     samba sendmail shping slurm smart snmp \
@@ -2306,7 +2427,7 @@ do \
 done
 
 for import_package in \
-    pmseries \
+    pmseries benchmarks \
     collectl2pcp iostat2pcp ganglia2pcp mrtg2pcp sar2pcp sheet2pcp ; \
 do \
     import_packages="$import_packages pcp-import-$import_package"; \
@@ -2314,7 +2435,8 @@ done
 
 for export_package in \
     pcp2arrow pcp2elasticsearch pcp2graphite pcp2influxdb pcp2json \
-    pcp2openmetrics pcp2spark pcp2xlsx pcp2xml pcp2zabbix zabbix-agent ; \
+    pcp2openmetrics pcp2opentelemetry pcp2spark pcp2xlsx pcp2xml \
+    pcp2zabbix zabbix-agent; \
 do \
     export_packages="$export_packages pcp-export-$export_package"; \
 done
@@ -2420,7 +2542,7 @@ done
 %if "@enable_selinux@" == "true"
 %selinux_relabel_pre -s targeted
 %endif
-%if 0%{?fedora} >= 32 || 0%{?rhel} >= 9
+%if 0%{?fedora} >= 32 || 0%{?rhel} >= 9 || 0%{?suse_version} >= 1600
 systemd-sysusers --replace=@pcp_systemdsysusers_dir@/pcp-testsuite.conf - < %{_topdir}/debian/pcp-testsuite.sysusers
 %else
 getent group pcpqa >/dev/null || groupadd -r pcpqa
@@ -2432,14 +2554,23 @@ chown -R pcpqa:pcpqa @pcp_var_dir@/testsuite 2>/dev/null
 exit 0
 
 %post testsuite
-%if "@enable_selinux@" == "true"
 PCP_PMDAS_DIR=@pcp_pmdas_dir@
+PCP_PMCDCONF_PATH=@pcp_pmcdconf_path@
+%if "@enable_selinux@" == "true"
 PCP_SELINUX_DIR=@pcp_selinux_dir@/packages/targeted
 semodule -r pcpqa >/dev/null 2>&1 || true
 %selinux_modules_install -s targeted "$PCP_SELINUX_DIR/pcp-testsuite.pp.bz2"
 %selinux_relabel_post -s targeted
 %endif
 chown -R pcpqa:pcpqa @pcp_var_dir@/testsuite 2>/dev/null
+# auto-install important PMDAs for testing (if not present already)
+needinstall='sample simple'
+for PMDA in $needinstall ; do
+    if ! grep -q "$PMDA/pmda$PMDA" "$PCP_PMCDCONF_PATH"
+    then
+	%{install_file "$PCP_PMDAS_DIR/$PMDA" .NeedInstall}
+    fi
+done
 # inherited from %post for pcp-collector
 %if "@enable_systemd@" == "true"
     systemctl restart pcp-reboot-init pmcd pmlogger >/dev/null 2>&1
@@ -2461,7 +2592,7 @@ fi
 %endif
 
 %pre
-%if 0%{?fedora} >= 32 || 0%{?rhel} >= 9
+%if 0%{?fedora} >= 32 || 0%{?rhel} >= 9 || 0%{?suse_version} >= 1600
 systemd-sysusers --replace=@pcp_systemdsysusers_dir@/pcp.conf - < %{_topdir}/debian/pcp.sysusers
 %else
 getent group pcp >/dev/null || groupadd -r pcp
@@ -2482,6 +2613,9 @@ needinstall="$needinstall nfsclient"
 %if "@pmda_openmetrics@" == "true"
 needinstall="$needinstall openmetrics"
 %endif
+%if "@pmda_opentelemetry@" == "true"
+needinstall="$needinstall opentelemetry"
+%endif
 for PMDA in $needinstall ; do
     if ! grep -q "$PMDA/pmda$PMDA" "$PCP_PMCDCONF_PATH"
     then
@@ -2489,7 +2623,12 @@ for PMDA in $needinstall ; do
     fi
 done
 # managed via /usr/lib/systemd/system-preset/90-default.preset nowadays:
-%if 0%{?rhel} > 0 && 0%{?rhel} < 10
+%if 0%{?fedora} > 40 || 0%{?rhel} > 9
+    for s in pmcd pmlogger pmie; do
+        systemctl --quiet is-enabled $s && systemctl restart $s >/dev/null 2>&1
+    done
+%else
+# old-school methods follow
 %if "@enable_systemd@" == "true"
     systemctl restart pmcd pmlogger pmie >/dev/null 2>&1
     systemctl enable pmcd pmlogger pmie >/dev/null 2>&1
@@ -2526,11 +2665,6 @@ done
 %{pmda_remove "$1" "statsd"}
 %endif
 
-%if "@pmda_json@" == "true"
-%preun pmda-json
-%{pmda_remove "$1" "json"}
-%endif
-
 %if "@pmda_libvirt@" == "true"
 %preun pmda-libvirt
 %{pmda_remove "$1" "libvirt"}
@@ -2544,6 +2678,11 @@ done
 %if "@pmda_openmetrics@" == "true"
 %preun pmda-openmetrics
 %{pmda_remove "$1" "openmetrics"}
+%endif
+
+%if "@pmda_opentelemetry@" == "true"
+%preun pmda-opentelemetry
+%{pmda_remove "$1" "opentelemetry"}
 %endif
 
 %if "@pmda_nginx@" == "true"
@@ -2681,6 +2820,9 @@ done
 %endif
 
 %if "@have_python@" == "true"
+%preun pmda-hdb
+%{pmda_remove "$1" "hdb"}
+
 %preun pmda-gluster
 %{pmda_remove "$1" "gluster"}
 
@@ -3016,6 +3158,8 @@ fi
 %endif
 
 %if "@have_python@" == "true"
+%files pmda-hdb -f pcp-pmda-hdb-files.rpm
+
 %files geolocate -f pcp-geolocate-files.rpm
 
 %files pmda-gluster -f pcp-pmda-gluster-files.rpm
@@ -3048,6 +3192,8 @@ fi
 
 %files export-pcp2openmetrics -f pcp-export-pcp2openmetrics-files.rpm
 
+%files export-pcp2opentelemetry -f pcp-export-pcp2opentelemetry-files.rpm
+
 %files export-pcp2spark -f pcp-export-pcp2spark-files.rpm
 
 %files export-pcp2xml -f pcp-export-pcp2xml-files.rpm
@@ -3074,10 +3220,6 @@ fi
 
 %files export-zabbix-agent -f pcp-export-zabbix-agent-files.rpm
 
-%if "@pmda_json@" == "true"
-%files pmda-json -f pcp-pmda-json-files.rpm
-%endif
-
 %if "@pmda_libvirt@" == "true"
 %files pmda-libvirt -f pcp-pmda-libvirt-files.rpm
 %endif
@@ -3090,6 +3232,9 @@ fi
 %files pmda-openmetrics -f pcp-pmda-openmetrics-files.rpm
 %endif
 
+%if "@pmda_opentelemetry@" == "true"
+%files pmda-opentelemetry -f pcp-pmda-opentelemetry-files.rpm
+%endif
 %files pmda-apache -f pcp-pmda-apache-files.rpm
 
 %if "@pmda_amdgpu@" == "true"
@@ -3144,6 +3289,8 @@ fi
 
 %if "@have_python@" == "true"
 %files import-pmseries -f pcp-import-pmseries-files.rpm
+
+%files import-benchmarks -f pcp-import-benchmarks-files.rpm
 %endif
 
 %if "@have_perl@" == "true"

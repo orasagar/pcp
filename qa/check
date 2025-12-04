@@ -245,7 +245,6 @@ _make_checkfiles()
 		$PCP_VAR_DIR/config/pmlogger/config.default \
 		$PCP_PMLOGGERCONTROL_PATH \
 		$PCP_PMCDOPTIONS_PATH \
-		$PCP_DIR/etc/init.d/pcp \
 		$PCP_DIR/etc/pcp.conf $PCP_DIR/etc/pcp.env \
 		$PCP_PMDAS_DIR/sample/dsohelp.dir \
 		$PCP_PMDAS_DIR/sample/dsohelp.pag \
@@ -322,13 +321,12 @@ _is_triaged()
     sed -n <triaged \
 	-e '/^'$seq'	/{
 s///
-s@\\@\\\\\\\\\\\\\\\\@g
+s@\\@\\\\\\\\@g
 p
 }' \
     | while read _line
     do
-	eval `echo "$_line" | sed -e 's/\//\\\\/g' -e 's/^/_re="/' -e 's/	.*/"/'`
-	eval `echo "$_line" | sed -e 's/^[^	]*	/_comments="/' -e 's/$/"/'`
+	eval `echo "$_line" | sed -e 's/^/_re="/' -e 's/	.*/"/'`
 	if grep -E "$_re" $tmp.whatami >/dev/null 2>&1
 	then
 	    # triaged, don't treat as a Failure

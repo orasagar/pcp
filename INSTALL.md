@@ -1,8 +1,8 @@
 # INSTALL
 
 - Packages
-  1. Linux Installation (rpm, deb)
-  2. Mac OS X Installation (brew)
+  1. Linux Installation (rpm, deb, containers)
+  2. MacOS Installation (brew+dmg)
   3. AIX Installation
   4. Solaris Installation
   5. Windows Installation
@@ -27,6 +27,10 @@ $ sudo rpm -Uvh pcp-*.rpm
 ```
 ... and skip to the final section (below) - "Post-install steps".
 
+If you are using a container based distribution, latest builds can
+be installed using the instructions for your runtime listed here:
+https://quay.io/repository/performancecopilot/archive-analysis
+
 *Special note for Ubuntu 8.04, 8.10, 9.04, 9.10 and 10.04*
 
 I've had to make the changes below to /usr/bin/dpkg-buildpackage.
@@ -50,28 +54,12 @@ root filesystem.
 
 *-- Ken*
 
-### 2. Mac OS X Installation
+### 2. MacOS Installation
 
-Installing PCP on MacOSX is done via https://brew.sh/ commands.
+Installing PCP on MacOS is done using the downloaded PCP .dmg file.
 From a Terminal run:
 ```
-$ brew install qt
-$ brew link qt --force
-$ brew install pcp
-$ brew link pcp
-$ pcp --version
-```
-
-The output for the last command will be something like
-```
-pcp version 4.1.1
-```
-
-Use the version number for creating symlinks (for version 4.1.1)
-```
-$ export version="4.1.1"
-$ sudo ln -s /usr/local/Cellar/pcp/$version/etc/pcp.conf /etc/pcp.conf
-$ sudo ln -s /usr/local/Cellar/pcp/$version/etc/pcp.env /etc/pcp.env
+$ open pcp-X.Y.Z-N.dmg
 ```
 
 ### 3. AIX Installation
@@ -216,6 +204,14 @@ optional" or "QA optional".
 The pcp package uses autoconf/configure and expects a GNU build
 environment (your platform must at least have gmake).
 
+```
+# MacOS - use Homebrew and ensure the following packages are installed 
+brew install gnu-tar pkg-config python3 python-setuptools autoconf
+```
+
+---
+
+### 2. Building PCP binaries
 If you just want to build a .rpm, .deb, .dmg, .msi[*] and/or
 tar file, use the "Makepkgs" script in the top level directory.
 This will configure and build the package for your platform and leave
@@ -231,6 +227,14 @@ Once "Makepkgs" completes you will have package binaries that will
 need to be installed.  The recipe depends on the packaging flavour,
 but the following should provide guidance:
 
+**Container builds**
+- using a build tool with the provided Dockerfile(s) invokes the
+Makepkgs script at the appropriate time, so instead:
+```
+podman build -t pcp -f build/containers/pcp/Dockerfile .
+podman build -t archive-analysis -f build/containers/archive-analysis/Dockerfile .
+```
+
 **dpkg install** (Debian and derivative distributions)
 ```
 $ cd build/deb
@@ -241,6 +245,13 @@ $ dpkg -i *.deb
 $ cd pcp-<version>/build/rpm
 $ sudo rpm -U `ls -1 *.rpm | sed -e '/\.src\.rpm$/d'`
 ```
+**MacOS DMG install**
+```
+$ open pcp-<version>/build/mac/pcp-<version>.dmg
+
+<A Finder window opens with the .pkg - double click it to run the installer>
+```
+
 **tarball install** (where we don't have native packaging working yet)
 ```
 $ cd pcp-<version>/build/tar
@@ -311,7 +322,9 @@ $ su root
 
 ## Post-install steps
 
-You will need to start the PCP Collection Daemon (PMCD), as root:
+You'll need to start the Performance Metrics Collection Daemon (PMCD)
+as root (consider also pmlogger, pmie and pmproxy), if your packaging
+system has not done so already:
 
 Linux:
 ```
@@ -321,9 +334,9 @@ $ su root
 # /etc/init.d/pmcd start  (or...)
 # /etc/rc.d/init.d/pmcd start
 ```
-Mac OS X:
+Mac OS:
 ```
-$ sudo /Library/StartupItems/pcp/pmcd start
+$ sudo /etc/init.d/pmcd start
 ```
 Windows:
 ```

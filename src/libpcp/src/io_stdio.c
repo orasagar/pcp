@@ -25,13 +25,9 @@ static void *
 stdio_open(__pmFILE *f, const char *path, const char *mode)
 {
     FILE *fp;
-
     if ((fp = fopen(path, mode)) == NULL)
 	return NULL;
-
     f->priv = (void *)fp;
-    f->position = 0;
-
     return f;
 }
 
@@ -39,13 +35,9 @@ static void *
 stdio_fdopen(__pmFILE *f, int fd, const char *mode)
 {
     FILE *fp;
-
     if ((fp = fdopen(fd, mode)) == NULL)
 	return NULL;
-
     f->priv = (void *)fp;
-    f->position = 0;
-
     return f;
 }
 
@@ -53,7 +45,7 @@ static int
 stdio_seek(__pmFILE *f, off_t offset, int whence)
 {
     FILE *fp = (FILE *)f->priv;
-    return fseek(fp, offset, whence);
+    return fseeko(fp, offset, whence);
 }
 
 static void
@@ -67,7 +59,7 @@ static off_t
 stdio_tell(__pmFILE *f)
 {
     FILE *fp = (FILE *)f->priv;
-    return ftell(fp);
+    return ftello(fp);
 }
 
 static int
@@ -81,18 +73,14 @@ static size_t
 stdio_read(void *ptr, size_t size, size_t nmemb, __pmFILE *f)
 {
     FILE *fp = (FILE *)f->priv;
-    size_t n = fread(ptr, size, nmemb, fp);
-    f->position = ftell(fp);
-    return n;
+    return fread(ptr, size, nmemb, fp);
 }
 
 static size_t
 stdio_write(void *ptr, size_t size, size_t nmemb, __pmFILE *f)
 {
     FILE *fp = (FILE *)f->priv;
-    size_t n = fwrite(ptr, size, nmemb, fp);
-    f->position = ftell(fp);
-    return n;
+    return fwrite(ptr, size, nmemb, fp);
 }
 
 static int

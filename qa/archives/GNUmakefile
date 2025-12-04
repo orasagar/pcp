@@ -1,4 +1,3 @@
-#!gmake
 #
 # Copyright (c) 2015 Ken McDonell.  All Rights Reserved.
 # Copyright (c) 2012,2014,2017,2018 Red Hat.
@@ -38,6 +37,7 @@ DEFLATE = small.0.xz small.meta small.index \
 	  pcp-atop-nvidia.0.xz pcp-atop-nvidia.meta.xz pcp-atop-nvidia.index \
 	  pcp-atop-threads.0.xz pcp-atop-threads.meta.xz pcp-atop-threads.index \
 	  pcp-dstat.0.xz pcp-dstat.meta pcp-dstat.index \
+	  pcp-remotes.0.xz pcp-remotes.meta.xz pcp-remotes.index.xz \
 	  pcp-free-tera.0.xz pcp-free-tera.meta.xz pcp-free-tera.index \
 	  pcp-hotatop.0.xz pcp-hotatop.meta pcp-hotatop.index \
 	  pcp-zeroconf.0.xz pcp-zeroconf.meta pcp-zeroconf.index \
@@ -63,21 +63,28 @@ DEFLATE = small.0.xz small.meta small.index \
 	  pcp-ss.0.xz pcp-ss.meta.xz pcp-ss.index \
 	  pcp-ps.0.xz pcp-ps.meta.xz pcp-ps.index all-ubuntu.22.04.index \
 	  pcp-meminfo.0.xz pcp-meminfo.meta.xz pcp-meminfo.index \
+	  pcp-mpstat.0.xz pcp-mpstat.meta.xz pcp-mpstat.index.xz \
 	  pcp-netstat.0.xz pcp-netstat.meta.xz pcp-netstat.index \
+	  pcp-rocestat.0.xz pcp-rocestat.meta.xz pcp-rocestat.index.xz \
 	  all-ubuntu.22.04.0.xz all-ubuntu.22.04.meta.xz all-ubuntu.22.04.index \
 	  bind2-9.18.0.xz bind2-9.18.meta.xz bind2-9.18.index \
-	  bind2-9.18+.0.xz bind2-9.18+.meta.xz bind2-9.18+.index
+	  bind2-9.18+.0.xz bind2-9.18+.meta.xz bind2-9.18+.index \
+	  pcp-numastat-1-node.0.xz pcp-numastat-1-node.meta.xz \
+	  pcp-numastat-1-node.index.xz gfs.0.xz gfs.meta gfs.index \
+	  numa.0.xz numa.meta.xz numa.index.xz \
+	  amdgpu.0.xz amdgpu.meta.xz amdgpu.index \
+	  nvidiagpu.0.xz nvidiagpu.meta.xz nvidiagpu.index
 
 SCRIPTS = mk.diff mk.gap mk.mysql mk.schizo mk.foo+ \
 	  mk.dynmetric mk.instant mk.dyninsts \
 	  mk.mirage mk.mirage-3 mk.proc mk.free mk.ps\
 	  mk.numa mk.rewrite mk.eventrec mk.interpmark mk.multihost \
-	  mk.sample_expr mk.tzchange mk.arch-all \
+	  mk.sample_expr mk.tzchange mk.arch-all mk.amdgpu mk.nvidiagpu \
 	  mk.atop mk.hotatop mk.atop-boot mk.atop-nvidia mk.atop-threads \
 	  mk.log-derived mk.vmstat mk.rep mk.procsched mk.netstat \
 	  mk.ipcs mk.value-test mk.rank-pred mk.cputime mk.meminfo \
 	  mk.sample-labels mk.pmproxy mk.mmv.help mk.slabinfo mk.zoneinfo \
-	  mk.atop-sar mk.pmstat
+	  mk.atop-sar mk.pmstat mk.rocestat mk.mpstat
 
 CONFIGS = config.verify config.shping YWhcCi.toium.config \
 	  kenj-pc-2.config reduce.config uwrap.config wrap.config \
@@ -181,3 +188,8 @@ pcp-mpstat3.0: pcp-mpstat2.0
 	../src/stripmark tmp/pcp-mpstat3.0 pcp-mpstat3.0
 	rm -rf tmp pcp-mpstat3-head.* pcp-mpstat3-body.*
 
+# sample-proc (same as the one in ../tmparch but this one is not
+# subject to platform jitters
+#
+sample-proc_v3.0 sammpe-proc_v2.0:
+	../tmparch/make.sample-proc

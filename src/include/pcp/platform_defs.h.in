@@ -37,7 +37,7 @@ extern "C" {
 #define FMT_SIZE "@fmt_size@"
 #define FMT_PTHREAD "@fmt_pthread@"
 
-#ifdef HAVE_BITS_WORDSIZE_H
+#if defined(HAVE_MULTILIB) && defined(HAVE_BITS_WORDSIZE_H)
 #include <bits/wordsize.h>
 #if __WORDSIZE == 32
 #include "config32.h"
@@ -72,12 +72,12 @@ extern "C" {
 #include <ws2tcpip.h>
 #endif
 
-#if defined(HAVE_ENDIAN_H)
-#include <endian.h>
+#if defined(HAVE_MACHINE_ENDIAN_H)
+#include <machine/endian.h>
 #elif defined(HAVE_SYS_ENDIAN_H)
 #include <sys/endian.h>
-#elif defined(HAVE_MACHINE_ENDIAN_H)
-#include <machine/endian.h>
+#elif defined(HAVE_ENDIAN_H)
+#include <endian.h>
 #endif
 #if defined(HAVE_ENDIAN_H) || defined(HAVE_SYS_ENDIAN_H) || defined(HAVE_MACHINE_ENDIAN_H)
 #if defined(BYTE_ORDER) && BYTE_ORDER == BIG_ENDIAN
@@ -325,8 +325,6 @@ PCP_CALL extern int fsync(int);
 PCP_CALL extern int symlink(const char *, const char *);
 PCP_CALL extern int readlink(const char *, char *, size_t);
 PCP_CALL extern void setlinebuf(FILE *);
-PCP_CALL extern char *index(const char *, int);
-PCP_CALL extern char *rindex(const char *, int);
 PCP_CALL extern char *strcasestr(const char *, const char *);
 PCP_CALL extern char *strsep(char **, const char *);
 PCP_CALL extern long int lrand48(void);
@@ -413,12 +411,6 @@ PCP_CALL extern char *basename(char *);
 #endif
 #ifndef HAVE_STRNDUP
 PCP_CALL extern char *strndup(const char *, size_t);
-#endif
-#ifndef HAVE_STRCHRNUL
-PCP_CALL extern char *strchrnul(const char *, int);
-#endif
-#ifndef HAVE_STRCHRNUL
-PCP_CALL extern char *strchrnul(const char *, int);
 #endif
 
 #ifndef HAVE_GETDOMAINNAME

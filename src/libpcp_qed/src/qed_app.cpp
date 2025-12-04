@@ -15,6 +15,7 @@
 
 #include <math.h>
 #include <pcp/pmapi.h>
+#include <pcp/libpcp.h>
 #include "qed_app.h"
 #include "qed_console.h"
 
@@ -64,6 +65,7 @@ int QedApp::getopts(const char *options)
     int			unknown = 0;
     int			c, errflg = 0;
     char		*endnum, *msg;
+    struct timespec	ts;
 
     /* TODO: this code should all be removed (convert tool to pmGetOptions) */
 
@@ -76,23 +78,23 @@ int QedApp::getopts(const char *options)
 
 	case 'a':
 	    my.archives.append(optarg);
-	    break;
+	    continue;
 
 	case 'h':
 	    my.hosts.append(optarg);
-	    break;
+	    continue;
 
 	case 'L':		/* local context */
 	    my.Lflag = 1;
-	    break;
+	    continue;
 
 	case 'n':		/* alternative PMNS */
 	    my.pmnsfile = optarg;
-	    break;
+	    continue;
 
 	case 'O':		/* sample offset */
 	    my.Oflag = optarg;
-	    break;
+	    continue;
 
 	case 'p':		/* existing pmtime port */
 	    my.port = (int)strtol(optarg, &endnum, 10);
@@ -100,23 +102,25 @@ int QedApp::getopts(const char *options)
 		pmprintf("%s: -p requires a numeric argument\n", pmGetProgname());
 		errflg++;
 	    }
-	    break;
+	    continue;
 
 	case 'S':		/* start run time */
 	    my.Sflag = optarg;
-	    break;
+	    continue;
 
 	case 't':		/* sampling interval */
-	    if (pmParseInterval(optarg, &my.delta, &msg) < 0) {
+	    if (pmParseInterval(optarg, &ts, &msg) < 0) {
 		pmprintf("%s: cannot parse interval\n%s", pmGetProgname(), msg);
 		free(msg);
 		errflg++;
 	    }
+	    my.delta.tv_sec = ts.tv_sec;
+	    my.delta.tv_usec = ts.tv_nsec / 1000;
 	    continue;
 
 	case 'T':		/* run time */
 	    my.Tflag = optarg;
-	    break;
+	    continue;
 
 	case 'V':		/* version */
 	    printf("%s %s\n", pmGetProgname(), pmGetConfig("PCP_VERSION"));
@@ -131,7 +135,7 @@ int QedApp::getopts(const char *options)
 		errflg++;
 	    }
 	    my.zflag++;
-	    break;
+	    continue;
 
 	case 'Z':		/* $TZ timezone */
 	    if (my.zflag) {
@@ -140,13 +144,18 @@ int QedApp::getopts(const char *options)
 		errflg++;
 	    }
 	    my.tz = optarg;
-	    break;
+	    continue;
 
 	default:
 	    unknown = 1;
-	    break;
+	    continue;
 	}
-    } while (!unknown);
+    } while (!unknown && !errflg);
+
+    if (errflg) {
+	pmflush();
+	exit(1);
+    }
 
     return c;
 }

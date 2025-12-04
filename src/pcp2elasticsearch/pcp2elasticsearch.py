@@ -35,7 +35,7 @@ except Exception:
 
 # PCP Python PMAPI
 from pcp import pmapi, pmconfig
-from cpmapi import PM_CONTEXT_ARCHIVE, PM_IN_NULL, PM_DEBUG_APPL1, PM_TIME_MSEC
+from cpmapi import PM_CONTEXT_ARCHIVE, PM_IN_NULL, PM_TIME_MSEC
 
 # Default config
 DEFAULT_CONFIG = ["./pcp2elasticsearch.conf", "$HOME/.pcp2elasticsearch.conf", "$HOME/.pcp/pcp2elasticsearch.conf", "$PCP_SYSCONF_DIR/pcp2elasticsearch.conf"]
@@ -302,7 +302,7 @@ class pcp2elasticsearch(object):
         context, self.source = pmapi.pmContext.set_connect_options(self.opts, self.source, self.speclocal)
 
         self.pmfg = pmapi.fetchgroup(context, self.source)
-        self.pmfg_ts = self.pmfg.extend_timestamp()
+        self.pmfg_ts = self.pmfg.extend_timeval()
         self.context = self.pmfg.get_context()
 
         if pmapi.c_api.pmSetContextOptions(self.context.ctx, self.opts.mode, self.opts.delta):
@@ -343,7 +343,7 @@ class pcp2elasticsearch(object):
     def execute(self):
         """ Fetch and report """
         # Debug
-        if self.context.pmDebug(PM_DEBUG_APPL1):
+        if self.context.pmDebug("appl1"):
             sys.stdout.write("Known config file keywords: " + str(self.keys) + "\n")
             sys.stdout.write("Known metric spec keywords: " + str(self.pmconfig.metricspec) + "\n")
 

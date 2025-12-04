@@ -1,6 +1,50 @@
+pcp (7.1.0-1) unstable; urgency=high
+
+  * New release (full details in CHANGELOG).
+
+ -- Nathan Scott <nathans@debian.org>  Wed, 04 Feb 2026 13:01:35 +1100
+
+pcp (7.0.5-1) unstable; urgency=high
+
+  * New release (full details in CHANGELOG).
+
+ -- Nathan Scott <nathans@debian.org>  Fri, 21 Nov 2025 11:08:59 +1100
+
+pcp (7.0.4-1) unstable; urgency=high
+
+  * New release (full details in CHANGELOG).
+
+ -- Nathan Scott <nathans@debian.org>  Thu, 20 Nov 2025 09:17:30 +1100
+
+pcp (7.0.3-1) unstable; urgency=high
+
+  * New release (full details in CHANGELOG).
+  * Exclude pmdabcc ppc64el builds until bpfcc #1077087 resolved (closes: #1117010)
+  * Fix pmlogger.service "protocol-error" issue [some time ago] (closes: #1005325)
+  * Use libinih-dev where available [done some time ago] (closes: #958241)
+  * Resolve install-doc --check issue [some time ago] (closes: #971414)
+  * Add perl-xs-dev to Build-Depends for trixie or later (closes: #1102849)
+
+ -- Nathan Scott <nathans@debian.org>  Wed, 12 Nov 2025 09:06:53 +1100
+
+pcp (7.0.2-1) unstable; urgency=low
+
+  * New release (full details in CHANGELOG).
+  * Introduces a JSON benchmark results format-converter package.
+
+ -- Nathan Scott <nathans@debian.org>  Wed, 15 Oct 2025 17:52:14 +1000
+
+pcp (7.0.1-1) unstable; urgency=low
+
+  * New release (full details in CHANGELOG).
+  * Introduces a guidellm2pcp format-converter package.
+
+ -- Nathan Scott <nathans@debian.org>  Sun, 21 Sep 2025 12:02:22 +1000
+
 pcp (7.0.0-1) unstable; urgency=low
 
   * New release (full details in CHANGELOG).
+  * build fixes for gmake --shuffle=reverse option (closes: #1105441)
   * build needs postfix for postfix PMDA (closes: #929368)
   * build needs libsystemd-dev for systemd PMDA (closes: #929372)
   * build needs libxml-libxml-perl and libfile-slurp-perl for bind2 PMDA (closes: #929376)
@@ -18,7 +62,7 @@ pcp (7.0.0-1) unstable; urgency=low
   * build needs python3-requests for openmetrics PMDA
   * build needs libnet-snmp-perl for snmp PMDA
 
- -- Nathan Scott <nathans@debian.org>  Tue, 01 Jul 2025 07:39:11 +1000
+ -- Nathan Scott <nathans@debian.org>  Mon, 01 Sep 2025 07:39:11 +1000
 
 pcp (6.3.3-1) unstable; urgency=low
 
@@ -1041,7 +1085,7 @@ pcp (2.7.7-20080924) unstable; urgency=low
 pcp (2.7.4-20081001) unstable; urgency=low
 
   * Added the Perl PCP::PMDA interface package - libpcp-pmda-perl.
-  * Several new Perl PMDAs (mysql, dbping, systemtap, memcached).
+  * Several new Perl PMDAs (mysql, dbping, memcached).
   * Several new Linux kernel metrics (cpu steal time, IO scheduler,
     additional NFS server metrics).
   * Many portability changes for native Win32 builds under MinGW.
@@ -1080,8 +1124,8 @@ pcp (2.7.4-20080418) unstable; urgency=low
 pcp (2.7.4-20080415) unstable; urgency=low
 
   * Improve path handling in pcp.env.
-  * Cygwin and Mac OS X ps fixes making daemon restart reliable.
-  * Mac OS X local context support.
+  * Cygwin and macOS ps fixes making daemon restart reliable.
+  * macOS local context support.
   * Improve kmchart integration.
 
  -- Nathan Scott <nathans@debian.org>  Tue, 15 Apr 2008 17:27:49 +1000

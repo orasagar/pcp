@@ -28,8 +28,8 @@ install : $(SUBDIRS)
 	$(INSTALL) -m 644 pmcd.options $(PCP_PMCDOPTIONS_PATH)
 	$(INSTALL) -m 755 -d `dirname $(PCP_PMCDRCLOCAL_PATH)`
 	$(INSTALL) -m 755 rc_local $(PCP_PMCDRCLOCAL_PATH)
+	$(INSTALL) -S $(PCP_PMCDRCLOCAL_PATH) $(PCP_SYSCONF_DIR)/pmcd/rc.local
 	$(INSTALL) -m 755 rc_pmcd $(PCP_RC_DIR)/pmcd
-	$(INSTALL) -m 755 rc_pcp $(PCP_RC_DIR)/pcp
 ifeq ($(ENABLE_SYSTEMD),true)
 	$(INSTALL) -m 644 pmcd.service $(PCP_SYSTEMDUNIT_DIR)/pmcd.service
 endif

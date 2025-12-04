@@ -32,9 +32,6 @@ static char *farm_setup_stats;
  */
 char 
 *strtrim(char* str) {
-	// Check for empty String
-	if(*str == 0)  // All spaces
-		return str;
 
 	// Trim leading space
 	while(isspace((unsigned char)*str)) str++;
@@ -658,7 +655,7 @@ farm_ata_per_head_stats_fetch(int item, unsigned int inst, pmAtomValue *atom)
 	                atom->ull = per_head_stats->skip_write_detect_threshold_detect_head;
 	                return PMDA_FETCH_STATIC;	
 	
-	        case WRITE_POWER_HRS:
+	        case WRITE_POWER_SECS:
         		indom = INDOM(PER_HEAD_INDOM);
 	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&per_head_stats);
 	                
@@ -668,7 +665,7 @@ farm_ata_per_head_stats_fetch(int item, unsigned int inst, pmAtomValue *atom)
 	                if (sts != PMDA_CACHE_ACTIVE)
 	                        return PM_ERR_INST;
 	                
-	                atom->ull = per_head_stats->write_power_hrs_head;
+	                atom->ull = per_head_stats->write_power_secs_head;
 	                return PMDA_FETCH_STATIC;	
 	
         	case MR_HEAD_RESISTANCE:
@@ -729,11 +726,684 @@ farm_ata_per_head_stats_fetch(int item, unsigned int inst, pmAtomValue *atom)
 	}
 }
 
+int 
+farm_scsi_data_fetch(int item, int cluster, struct farm_scsi_log_stats *farm_scsi_log_stats, pmAtomValue *atom)
+{
+ 	if (cluster == CLUSTER_SCSI_LOG_HEADER) {
+		switch (item) {
+			case SCSI_LOG_VERSION:
+				atom->cp = farm_scsi_log_stats->log_version;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_PAGES_SUPPORTED:
+				atom->ull = farm_scsi_log_stats->pages_supported;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_LOG_SIZE:
+				atom->ull = farm_scsi_log_stats->log_size;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_HEADS_SUPPORTED:
+				atom->ull = farm_scsi_log_stats->heads_supported;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_REASON_FOR_LAST_FRAME:
+				atom->ull = farm_scsi_log_stats->reason_for_frame_capture;
+				return PMDA_FETCH_STATIC;
+
+			default:
+				return PM_ERR_PMID;
+		}
+
+	} else if (cluster == CLUSTER_SCSI_DRIVE_INFORMATION) {
+		switch (item) {
+			case SCSI_SERIAL_NUMBER:
+				atom->cp = farm_scsi_log_stats->serial_number;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_WORLD_WIDE_NAME:
+				atom->cp = farm_scsi_log_stats->world_wide_name;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_FIRMWARE_REVISION:
+				atom->cp = farm_scsi_log_stats->firmware_revision;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_DEVICE_INTERFACE:
+				atom->cp = farm_scsi_log_stats->device_interface;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_DEVICE_CAPACITY_IN_SECTORS:
+				atom->ull = farm_scsi_log_stats->device_capacity_in_sectors;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_PHYSICAL_SECTOR_SIZE:
+				atom->ull = farm_scsi_log_stats->physical_sector_size;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_LOGICAL_SECTOR_SIZE:
+				atom->ull = farm_scsi_log_stats->logical_sector_size;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_DEVICE_BUFFER_SIZE:
+				atom->ull = farm_scsi_log_stats->device_buffer_size;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_NUMBER_OF_HEADS:
+				atom->ull = farm_scsi_log_stats->number_of_heads;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_DEVICE_FORM_FACTOR:
+				atom->cp = farm_scsi_log_stats->device_form_factor;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_ROTATIONAL_RATE:
+				atom->ull = farm_scsi_log_stats->rotational_rate;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_POWER_ON_HOURS:
+				atom->ull = farm_scsi_log_stats->power_on_hours;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_POWER_CYCLE_COUNT:
+				atom->ull = farm_scsi_log_stats->power_cycle_count;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_HARDWARE_RESET_COUNT:
+				atom->ull = farm_scsi_log_stats->hardware_reset_count;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_ASSEMBLY_DATE:
+				atom->cp = farm_scsi_log_stats->assembly_date;
+				return PMDA_FETCH_STATIC;
+
+			default:
+				return PM_ERR_PMID;
+		}
+
+	} else if (cluster == CLUSTER_SCSI_WORKLOAD_STATISTICS) {
+		switch (item) {
+			case SCSI_TOTAL_READ_COMMANDS:
+				atom->ull = farm_scsi_log_stats->total_read_commands;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_TOTAL_WRITE_COMMANDS:
+				atom->ull = farm_scsi_log_stats->total_write_commands;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_TOTAL_RANDOM_READ_COMMANDS:
+				atom->ull = farm_scsi_log_stats->total_random_read_commands;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_TOTAL_RANDOM_WRITE_COMMANDS:
+				atom->ull = farm_scsi_log_stats->total_random_write_commands;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_TOTAL_OTHER_COMMANDS:
+				atom->ull = farm_scsi_log_stats->total_other_commands;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_LOGICAL_SECTORS_WRITTEN:
+				atom->ull = farm_scsi_log_stats->logical_sectors_written;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_LOGICAL_SECTORS_READ:
+				atom->ull = farm_scsi_log_stats->logical_sectors_read;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_READ_COMMANDS_0_3_LBA_SPACE:
+				atom->ull = farm_scsi_log_stats->read_commands_0_3_lba_space;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_READ_COMMANDS_3_25_LBA_SPACE:
+				atom->ull = farm_scsi_log_stats->read_commands_3_25_lba_space;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_READ_COMMANDS_25_75_LBA_SPACE:
+				atom->ull = farm_scsi_log_stats->read_commands_25_75_lba_space;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_READ_CMMANDS_75_100_LBA_SPACE:
+				atom->ull = farm_scsi_log_stats->read_commands_75_100_lba_space;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_WRITE_COMMANDS_0_3_LBA_SPACE:
+				atom->ull = farm_scsi_log_stats->write_commands_0_3_lba_space;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_WRITE_COMMANDS_3_25_LBA_SPACE:
+				atom->ull = farm_scsi_log_stats->write_commands_3_25_lba_space;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_WRITE_COMMANDS_25_75_LBA_SPACE:
+				atom->ull = farm_scsi_log_stats->write_commands_25_75_lba_space;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_WRITE_COMMANDS_75_100_LBA_SPACE:
+				atom->ull = farm_scsi_log_stats->write_commands_75_100_lba_space;
+				return PMDA_FETCH_STATIC;
+
+			default:
+				return PM_ERR_PMID;
+		}
+
+	} else if (cluster == CLUSTER_SCSI_ERROR_STATISTICS) {
+		switch (item) {
+			case SCSI_UNRECOVERABLE_READ_ERRORS:
+				atom->ull = farm_scsi_log_stats->unrecoverable_read_errors;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_UNRECOVERABLE_WRITE_ERRORS:
+				atom->ull = farm_scsi_log_stats->unrecoverable_write_errors;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_MECHANICAL_START_FAILURES:
+				atom->ull = farm_scsi_log_stats->mechanical_start_failures;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_FRU_CODE_MOST_RECENT_SMART_FRAME:
+				atom->ull = farm_scsi_log_stats->fru_code_most_recent_smart_frame;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_INVALID_DWORD_COUNT_A:
+				atom->ull = farm_scsi_log_stats->invalid_dword_count_a;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_INVALID_DWORD_COUNT_B:
+				atom->ull = farm_scsi_log_stats->invalid_dword_count_b;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_DISPARITY_ERROR_CODE_A:
+				atom->ull = farm_scsi_log_stats->dispartiy_error_code_a;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_DISPARITY_ERROR_CODE_B:
+				atom->ull = farm_scsi_log_stats->dispartiy_error_code_b;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_LOSS_OF_DWORD_SYNC_A:
+				atom->ull = farm_scsi_log_stats->loss_of_dword_sync_a;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_LOSS_OF_DWORD_SYNC_B:
+				atom->ull = farm_scsi_log_stats->loss_of_dword_sync_b;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_PHY_RESET_PROBLEM_PORT_A:
+				atom->ull = farm_scsi_log_stats->phy_reset_problem_port_a;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_PHY_RESET_PROBLEM_PORT_B:
+				atom->ull = farm_scsi_log_stats->phy_reset_problem_port_b;
+				return PMDA_FETCH_STATIC;
+
+			default:
+				return PM_ERR_PMID;
+		}
+
+	} else if (cluster == CLUSTER_SCSI_ENVIRONMENTAL_STATISTICS) {
+		switch (item) {
+			case SCSI_CURRENT_TEMPERATURE:
+				atom->ull = farm_scsi_log_stats->current_temperature;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_HIGHEST_TEMPERATURE:
+				atom->ull = farm_scsi_log_stats->highest_temperature;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_LOWEST_TEMPERATURE:
+				atom->ull = farm_scsi_log_stats->lowest_temperature;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_SPECIFIED_MAX_OPERATING_TEMPERATURE:
+				atom->ull = farm_scsi_log_stats->specified_max_operating_temperature;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_SPECIFIED_MIN_OPERATING_TEMPERATURE:
+				atom->ull = farm_scsi_log_stats->specified_min_operating_temperature;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_CURRENT_RELATIVE_HUMIDITY:
+				atom->ull = farm_scsi_log_stats->current_relative_humidity;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_CURRENT_MOTOR_POWER:
+				atom->ull = farm_scsi_log_stats->current_motor_power;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_12V_POWER_AVERAGE:
+				atom->ull = farm_scsi_log_stats->_12v_power_average;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_12V_POWER_MINIUMUM:
+				atom->ull = farm_scsi_log_stats->_12v_power_minimum;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_12V_POWER_MAXIMUM:
+				atom->ull = farm_scsi_log_stats->_12v_power_maximum;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_5V_POWER_AVERAGE:
+				atom->ull = farm_scsi_log_stats->_5v_power_average;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_5V_POWER_MINIMUM:
+				atom->ull = farm_scsi_log_stats->_5v_power_minimum;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_5V_POWER_MAXIMUM:
+				atom->ull = farm_scsi_log_stats->_5v_power_maximum;
+				return PMDA_FETCH_STATIC;
+
+			default:
+				return PM_ERR_PMID;
+		}
+
+	} else if (cluster == CLUSTER_SCSI_RELIABILITY_STATISTICS) {
+		switch (item) {
+			case SCSI_HELIUM_PRESSURE_THREHOLD_TRIPPED:
+				atom->ull = farm_scsi_log_stats->helium_pressure_threshold_tripped;
+				return PMDA_FETCH_STATIC;
+
+			default:
+				return PM_ERR_PMID;
+		}
+
+	} else if (cluster == CLUSTER_SCSI_DRIVE_INFORMATION_CONTINUED) {
+		switch (item) {
+			case SCSI_DEPOPULATION_HEAD_MASK:
+				atom->ull = farm_scsi_log_stats->depopulation_head_mask;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_PRODUCT_ID:
+				atom->cp = farm_scsi_log_stats->product_id;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_DRIVE_RECORDING_TYPE:
+				atom->cp = farm_scsi_log_stats->drive_recording_type;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_DEPOPPED:
+				atom->ull = farm_scsi_log_stats->depopped;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_MAX_NUMBER_FOR_REASSIGNMENT:
+				atom->ull = farm_scsi_log_stats->max_number_for_reassignment;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_TIME_TO_READY_LAST_POWER_CYCLE:
+				atom->ull = farm_scsi_log_stats->time_to_ready_last_power_cycle;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_TIME_DRIVE_HELD_IN_STAGGERED_SPIN:
+				atom->ull = farm_scsi_log_stats->time_drive_held_in_staggered_spin;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_SPIN_UP_TIME:
+				atom->ull = farm_scsi_log_stats->spin_up_time;
+				return PMDA_FETCH_STATIC;
+
+			default:
+				return PM_ERR_PMID;
+		}
+
+	} else if (cluster == CLUSTER_SCSI_ENVIRONMENTAL_INFORMATION_CONTINUED) {
+		switch (item) {
+			case SCSI_CURRENT_12V:
+				atom->ull = farm_scsi_log_stats->current_12_volts;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_MAXIMUM_12V:
+				atom->ull = farm_scsi_log_stats->minimum_12_volts;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_MINIMUM_12V:
+				atom->ull = farm_scsi_log_stats->maximum_12_volts;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_CURRENT_5V:
+				atom->ull = farm_scsi_log_stats->current_5_volts;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_MAXIMUM_5V:
+				atom->ull = farm_scsi_log_stats->minimum_5_volts;
+				return PMDA_FETCH_STATIC;
+
+			case SCSI_MINIMUM_5V:
+				atom->ull = farm_scsi_log_stats->maximum_5_volts;
+				return PMDA_FETCH_STATIC;
+
+			default:
+				return PM_ERR_PMID;
+		}
+
+	}
+
+	/* NOTREACHED */
+	return PMDA_FETCH_NOVALUES;
+}
+
+int 
+farm_scsi_per_head_stats_fetch(int item, unsigned int inst, pmAtomValue *atom)
+{
+	struct  farm_scsi_per_head_stats *scsi_per_head_stats;
+	pmInDom indom;
+	int sts;
+
+	switch  (item) {
+
+                case SCSI_MR_HEAD_RESISTANCE:
+	                indom = INDOM(SCSI_PER_HEAD_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&scsi_per_head_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = scsi_per_head_stats->mr_head_resistance;
+	                return PMDA_FETCH_STATIC;
+
+                case SCSI_REALLOCATED_SECTORS:
+	                indom = INDOM(SCSI_PER_HEAD_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&scsi_per_head_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = scsi_per_head_stats->reallocated_sectors;
+	                return PMDA_FETCH_STATIC;
+
+                case SCSI_REALLOCATED_CANDIDATE_SECTORS:
+	                indom = INDOM(SCSI_PER_HEAD_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&scsi_per_head_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = scsi_per_head_stats->reallocated_candidate_sectors;
+	                return PMDA_FETCH_STATIC;
+
+                case SCSI_HEAD_POWER_ON_HOURS:
+	                indom = INDOM(SCSI_PER_HEAD_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&scsi_per_head_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = scsi_per_head_stats->power_on_hours;
+	                return PMDA_FETCH_STATIC;
+
+                case SCSI_CUMULATIVE_LIFETIME_UNRECOVERABLE_READ_REPEATING:
+	                indom = INDOM(SCSI_PER_HEAD_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&scsi_per_head_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = scsi_per_head_stats->head_cumulative_lifetime_unrecoverable_read_repeating;
+	                return PMDA_FETCH_STATIC;
+
+                case SCSI_CUMULATIVE_LIFETIME_UNRECOVERABLE_READ_UNIQUE:
+	                indom = INDOM(SCSI_PER_HEAD_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&scsi_per_head_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = scsi_per_head_stats->head_cumulative_lifetime_unrecoverable_read_unique;
+	                return PMDA_FETCH_STATIC;
+
+                case SCSI_SECOND_MR_HEAD_RESISTANCE:
+	                indom = INDOM(SCSI_PER_HEAD_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&scsi_per_head_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = scsi_per_head_stats->second_mr_head_resistance;
+	                return PMDA_FETCH_STATIC;
+
+		default:
+			return PM_ERR_PMID;
+	        
+	}
+}
+
+int 
+farm_scsi_per_actuator_stats_fetch(int item, unsigned int inst, pmAtomValue *atom)
+{
+	struct  farm_scsi_per_actuator_stats *farm_scsi_per_actuator_stats;
+	pmInDom indom;
+	int sts;
+
+	switch  (item) {
+                case SCSI_HEAD_LOAD_EVENTS:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->head_load_events;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_TIMESTAMP_OF_LAST_IDD_TEST:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->timestamp_of_last_idd_test;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_SUBCOMMAND_OF_LAST_IDD_TEST:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->sub_command_of_last_idd_test;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_NUMBER_OF_REALLOCATAED_SECTOR_RECLAMATIONS:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->number_of_reallocated_sector_reclamations;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_SERVO_STATUS:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->servo_status;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_NUMBER_OF_SLIPPED_SECTORS_AFTER_IDD_SCAN:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->number_of_slipped_sectors_after_idd_scan;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_NUMBER_OF_RESIDENT_REALLOCATED_SECTORS_AFTER_IDD_SCAN:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->number_of_resident_reallocated_sectors_after_idd_scan;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_SUCCESSFULLY_SCRUBBED_SECTORS_AFTER_IDD_SCAN:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->successfully_scrubbed_sectors_after_idd_scan;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_NUMBER_OF_DOS_SCANS_PERFORMED:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->number_of_dos_scans_performed;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_NUMBER_OF_LBS_CORRECTED_BY_ISP:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->number_of_lbas_corrected_by_isp;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_NUMBER_OF_VALID_PARITY_SECTORS:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->number_of_valid_parity_sectors;
+	                return PMDA_FETCH_STATIC;
+
+		case SCSI_NUMBER_OF_LBAS_CORRECTED_BY_PARITY_SECTOR:
+	                indom = INDOM(SCSI_ACTUATOR_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_stats);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_stats->number_of_lbas_corrected_by_parity_sector;
+	                return PMDA_FETCH_STATIC;
+
+		default:
+			return PM_ERR_PMID;
+	        
+	}
+}
+
+int 
+farm_scsi_per_actuator_reallocation_fetch(int item, unsigned int inst, pmAtomValue *atom)
+{
+	struct  farm_scsi_per_actuator_reallocation *farm_scsi_per_actuator_reallocation;
+	pmInDom indom;
+	int sts;
+
+	switch  (item) {
+                case SCSI_NUM_REALLOCATED_SECTORS:
+	                indom = INDOM(SCSI_ACTUATOR_REALLOCATION_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_reallocation);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_reallocation->actuator_number_reallocated_sectors;
+	                return PMDA_FETCH_STATIC;
+
+                case SCSI_NUM_REALLOCATED_CANDIDATE_SECTORS:
+	                indom = INDOM(SCSI_ACTUATOR_REALLOCATION_INDOM);
+	                sts = pmdaCacheLookup(indom, inst, NULL, (void **)&farm_scsi_per_actuator_reallocation);
+	                
+	                if (sts <0)
+	                        return sts;
+
+	                if (sts != PMDA_CACHE_ACTIVE)
+	                        return PM_ERR_INST;
+	                
+	                atom->ull = farm_scsi_per_actuator_reallocation->actuator_number_recallocated_candidate_sectors;
+	                return PMDA_FETCH_STATIC;
+
+		default:
+			return PM_ERR_PMID;
+	        
+	}
+}
+
 int
 farm_ata_refresh_data(const char *name, struct farm_ata_log_stats *farm_ata_log_stats)
 {
 	char buffer[4096], model_number[13], assembly_date[5] = {'\0'};
-	uint64_t number_of_heads= 0;
+	uint64_t number_of_heads= 0, i = 0;
 	int scanresult = 0, flash_led_event = -1, head_counter = -1;
 	int dvga_head_counter = -1, rvga_head_counter = -1, fvga_head_counter = -1;
 	int swdt_head_counter = -1, wpo_head_counter = -1, mr_head_counter = -1;
@@ -747,100 +1417,102 @@ farm_ata_refresh_data(const char *name, struct farm_ata_log_stats *farm_ata_log_
 
 	while (fgets(buffer, sizeof(buffer)-1, pf) != NULL) {
 
-	if (strncmp(strtrim(buffer), "FARM Log Version:", 17) == 0)
+	char * trimmed = strtrim(buffer);
+
+	if (strncmp(trimmed, "FARM Log Version:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %s", farm_ata_log_stats->log_version);
 
-	if (strncmp(strtrim(buffer), "Pages Supported:", 16) == 0)
+	if (strncmp(trimmed, "Pages Supported:", 16) == 0)
 		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->pages_supported);
 
-	if (strncmp(strtrim(buffer), "Log Size:", 9) == 0)
+	if (strncmp(trimmed, "Log Size:", 9) == 0)
 		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->log_size);
 
-	if (strncmp(strtrim(buffer), "Page Size:", 10) == 0)
+	if (strncmp(trimmed, "Page Size:", 10) == 0)
 		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->page_size);
 
-	if (strncmp(strtrim(buffer), "Heads Supported:", 16) == 0)
+	if (strncmp(trimmed, "Heads Supported:", 16) == 0)
 		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->heads_supported);
 
-	if (strncmp(strtrim(buffer), "Number of Copies:", 17) == 0)
+	if (strncmp(trimmed, "Number of Copies:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->number_of_copies);
 
-	if (strncmp(strtrim(buffer), "Reason for Frame Capture:", 25) == 0)
+	if (strncmp(trimmed, "Reason for Frame Capture:", 25) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->reason_for_frame_capture);
 
-	if (strncmp(strtrim(buffer), "Serial Number:", 14) == 0)
+	if (strncmp(trimmed, "Serial Number:", 14) == 0)
 		sscanf(buffer, "%*s%*s %s", farm_ata_log_stats->serial_number);
 
-	if (strncmp(strtrim(buffer), "World Wide Name:", 16) == 0)
+	if (strncmp(trimmed, "World Wide Name:", 16) == 0)
 		sscanf(buffer, "%*s%*s%*s %s", farm_ata_log_stats->world_wide_name);
 
-	if (strncmp(strtrim(buffer), "Device Interface:", 17) == 0)
+	if (strncmp(trimmed, "Device Interface:", 17) == 0)
 		sscanf(buffer, "%*s%*s %s", farm_ata_log_stats->device_interface);
 
-	if (strncmp(strtrim(buffer), "Device Capacity in Sectors:", 27) == 0)
+	if (strncmp(trimmed, "Device Capacity in Sectors:", 27) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->device_capacity_in_sectors);
 
-	if (strncmp(strtrim(buffer), "Physical Sector Size:", 21) == 0)
+	if (strncmp(trimmed, "Physical Sector Size:", 21) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->physical_sector_size);
 
-	if (strncmp(strtrim(buffer), "Logical Sector Size:", 20) == 0)
+	if (strncmp(trimmed, "Logical Sector Size:", 20) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->logical_sector_size);
 
-	if (strncmp(strtrim(buffer), "Device Buffer Size:", 19) == 0)
+	if (strncmp(trimmed, "Device Buffer Size:", 19) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->device_buffer_size);
 
-	if (strncmp(strtrim(buffer), "Number of Heads:", 16) == 0) {
+	if (strncmp(trimmed, "Number of Heads:", 16) == 0) {
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->number_of_heads);
       
 		number_of_heads = farm_ata_log_stats->number_of_heads;
 	}
 
-	if (strncmp(strtrim(buffer), "Device Form Factor:", 19) == 0)
+	if (strncmp(trimmed, "Device Form Factor:", 19) == 0)
 		sscanf(buffer, "%*s%*s%*s %[^\n]", farm_ata_log_stats->device_form_factor);
 
-	if (strncmp(strtrim(buffer), "Rotation Rate:", 14) == 0)
+	if (strncmp(trimmed, "Rotation Rate:", 14) == 0)
 		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->rotational_rate);
 
-	if (strncmp(strtrim(buffer), "Firmware Rev:", 13) == 0)
+	if (strncmp(trimmed, "Firmware Rev:", 13) == 0)
 		sscanf(buffer, "%*s%*s %s", farm_ata_log_stats->firmware_rev);
 
-	if (strncmp(strtrim(buffer), "ATA Security State", 18) == 0)
+	if (strncmp(trimmed, "ATA Security State", 18) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %s", farm_ata_log_stats->ata_security_state);
 
-	if (strncmp(strtrim(buffer), "ATA Features Supported", 22) == 0)
+	if (strncmp(trimmed, "ATA Features Supported", 22) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %s", farm_ata_log_stats->ata_features_supported);
 
-	if (strncmp(strtrim(buffer), "ATA Features Enabled", 20) == 0)
+	if (strncmp(trimmed, "ATA Features Enabled", 20) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %s", farm_ata_log_stats->ata_features_enabled);
 
-	if (strncmp(strtrim(buffer), "Power on Hours:", 15) == 0)
+	if (strncmp(trimmed, "Power on Hours:", 15) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->power_on_hours);
 
-	if (strncmp(strtrim(buffer), "Spindle Power on Hours:", 23) == 0)
+	if (strncmp(trimmed, "Spindle Power on Hours:", 23) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->spindle_power_on_hours);
 
-	if (strncmp(strtrim(buffer), "Head Flight Hours:", 18) == 0)
+	if (strncmp(trimmed, "Head Flight Hours:", 18) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->head_flight_hours);
 
-	if (strncmp(strtrim(buffer), "Head Load Events:", 17) == 0)
+	if (strncmp(trimmed, "Head Load Events:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->head_load_events);
 
-	if (strncmp(strtrim(buffer), "Power Cycle Count:", 18) == 0)
+	if (strncmp(trimmed, "Power Cycle Count:", 18) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->power_cycle_count);
 
-	if (strncmp(strtrim(buffer), "Hardware Reset Count:", 21) == 0)
+	if (strncmp(trimmed, "Hardware Reset Count:", 21) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->hardware_reset_count);
 
-	if (strncmp(strtrim(buffer), "Spin-up Time:", 13) == 0)
+	if (strncmp(trimmed, "Spin-up Time:", 13) == 0)
  		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->spin_up_time);
 
-	if (strncmp(strtrim(buffer), "Time to ready", 13) == 0)
+	if (strncmp(trimmed, "Time to ready", 13) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->time_to_ready_last_power_cycle);
 
-	if (strncmp(strtrim(buffer), "Time drive is held", 18) == 0)
+	if (strncmp(trimmed, "Time drive is held", 18) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->time_drive_held_in_staggered_spin);
 
-	if (strncmp(strtrim(buffer), "Model Number:", 13) == 0) {
+	if (strncmp(trimmed, "Model Number:", 13) == 0) {
 		scanresult = sscanf(buffer, "%*s%*s %s", model_number);
       
 		if (scanresult == 1) {
@@ -850,13 +1522,13 @@ farm_ata_refresh_data(const char *name, struct farm_ata_log_stats *farm_ata_log_
 		}
 	}
 
-	if (strncmp(strtrim(buffer), "Drive Recording Type:", 20) == 0)
+	if (strncmp(trimmed, "Drive Recording Type:", 20) == 0)
 		sscanf(buffer, "%*s%*s%*S %s", farm_ata_log_stats->drive_recording_type);
 
-	if (strncmp(strtrim(buffer), "Max Number of Available Sectors for Reassignment:", 49) == 0)
+	if (strncmp(trimmed, "Max Number of Available Sectors for Reassignment:", 49) == 0)
  		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->max_number_available_sectors_reassignment);
 
-	if (strncmp(strtrim(buffer), "Assembly Date (YYWW):", 21) == 0) {
+	if (strncmp(trimmed, "Assembly Date (YYWW):", 21) == 0) {
 		scanresult = sscanf(buffer, "%*s%*s%*s %s", assembly_date);
 
 		if (scanresult == 1) {
@@ -866,301 +1538,301 @@ farm_ata_refresh_data(const char *name, struct farm_ata_log_stats *farm_ata_log_
 		}
 	}
 
-	if (strncmp(strtrim(buffer), "Depopulation Head Mask:", 23) == 0)
+	if (strncmp(trimmed, "Depopulation Head Mask:", 23) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->depopulation_head_mask);
 
-	if (strncmp(strtrim(buffer), "Total Number of Read Commands:", 30) == 0)
+	if (strncmp(trimmed, "Total Number of Read Commands:", 30) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->total_read_commands);
 
-	if (strncmp(strtrim(buffer), "Total Number of Write Commands:", 31) == 0)
+	if (strncmp(trimmed, "Total Number of Write Commands:", 31) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->total_write_commands);
 
-	if (strncmp(strtrim(buffer), "Total Number of Random Read Commands:", 37) == 0)
+	if (strncmp(trimmed, "Total Number of Random Read Commands:", 37) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->total_random_read_commands);
 
-	if (strncmp(strtrim(buffer), "Total Number of Random Write Commands:", 38) == 0)
+	if (strncmp(trimmed, "Total Number of Random Write Commands:", 38) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->total_random_write_commands);
 
-	if (strncmp(strtrim(buffer), "Total Number Of Other Commands:", 31) == 0)
+	if (strncmp(trimmed, "Total Number Of Other Commands:", 31) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->total_other_commands);
 
-	if (strncmp(strtrim(buffer), "Logical Sectors Written:", 24) == 0)
+	if (strncmp(trimmed, "Logical Sectors Written:", 24) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->logical_sectors_written);
 
-	if (strncmp(strtrim(buffer), "Logical Sectors Read:", 21) == 0)
+	if (strncmp(trimmed, "Logical Sectors Read:", 21) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->logical_sectors_read);
 
-	if (strncmp(strtrim(buffer), "Number of dither events during", 30) == 0)
+	if (strncmp(trimmed, "Number of dither events during", 30) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->dither_events_current_power_cycle);
 
-	if (strncmp(strtrim(buffer), "Number of times dither was held off during random", 49) == 0)
+	if (strncmp(trimmed, "Number of times dither was held off during random", 49) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->dither_held_off_random_workloads);
 
-	if (strncmp(strtrim(buffer), "Number of times dither was held off during sequential", 53) == 0)
+	if (strncmp(trimmed, "Number of times dither was held off during sequential", 53) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->dither_held_off_sequential_workloads);
 
-	if (strncmp(strtrim(buffer), "Number of Read commands from 0-3.125%", 37) == 0)
+	if (strncmp(trimmed, "Number of Read commands from 0-3.125%", 37) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->read_commands_0_3_lba_space_last_3_smart_summary_frames);
 
-	if (strncmp(strtrim(buffer), "Number of Read commands from 3.125-25%", 38) == 0)
+	if (strncmp(trimmed, "Number of Read commands from 3.125-25%", 38) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->read_commands_3_25_lba_space_last_3_smart_summary_frames);
 
-	if (strncmp(strtrim(buffer), "Number of Read commands from 25-75%", 35) == 0)
+	if (strncmp(trimmed, "Number of Read commands from 25-75%", 35) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->read_commands_25_75_lba_space_last_3_smart_summary_frames);
 
-	if (strncmp(strtrim(buffer), "Number of Read commands from 75-100%", 36) == 0)
+	if (strncmp(trimmed, "Number of Read commands from 75-100%", 36) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->read_commands_75_100_lba_space_last_3_smart_summary_frames);
 
-	if (strncmp(strtrim(buffer), "Number of Write commands from 0-3.125%", 38) == 0)
+	if (strncmp(trimmed, "Number of Write commands from 0-3.125%", 38) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->write_commands_0_3_lba_space_last_3_smart_summary_frames);
 
-	if (strncmp(strtrim(buffer), "Number of Write commands from 3.125-25%", 39) == 0)
+	if (strncmp(trimmed, "Number of Write commands from 3.125-25%", 39) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->write_commands_3_25_lba_space_last_3_smart_summary_frames);
 
-	if (strncmp(strtrim(buffer), "Number of Write commands from 25-75%", 36) == 0)
+	if (strncmp(trimmed, "Number of Write commands from 25-75%", 36) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->write_commands_25_75_lba_space_last_3_smart_summary_frames);
 
-	if (strncmp(strtrim(buffer), "Number of Write commands from 75-100%", 37) == 0)
+	if (strncmp(trimmed, "Number of Write commands from 75-100%", 37) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->write_commands_75_100_lba_space_last_3_smart_summary_frames);
 
-	if (strncmp(strtrim(buffer), "Unrecoverable Read Errors:", 26) == 0)
+	if (strncmp(trimmed, "Unrecoverable Read Errors:", 26) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->unrecoverable_read_errors);
   
-	if (strncmp(strtrim(buffer), "Unrecoverable Write Errors:", 27) == 0)
+	if (strncmp(trimmed, "Unrecoverable Write Errors:", 27) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->unrecoverable_write_errors);
 
-	if (strncmp(strtrim(buffer), "Number of Reallocated Sectors:", 30) == 0)
+	if (strncmp(trimmed, "Number of Reallocated Sectors:", 30) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->reallocated_sectors);
 
-	if (strncmp(strtrim(buffer), "Number of Read Recovery Attempts:", 33) == 0)
+	if (strncmp(trimmed, "Number of Read Recovery Attempts:", 33) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->read_recovery_attempts);
 	
-	if (strncmp(strtrim(buffer), "Number of Mechanical Start Failures:", 36) == 0)
+	if (strncmp(trimmed, "Number of Mechanical Start Failures:", 36) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->mechanical_start_failures);
 
-	if (strncmp(strtrim(buffer), "Number of Reallocated Candidate Sectors:", 40) == 0)
+	if (strncmp(trimmed, "Number of Reallocated Candidate Sectors:", 40) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->reallocated_candidate_sectors);
 
-	if (strncmp(strtrim(buffer), "Number of ASR Events:", 21) == 0)
+	if (strncmp(trimmed, "Number of ASR Events:", 21) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->asr_events);
   
-	if (strncmp(strtrim(buffer), "Number of Interface CRC Errors:", 31) == 0)
+	if (strncmp(trimmed, "Number of Interface CRC Errors:", 31) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->interface_crc_errors);
   
-	if (strncmp(strtrim(buffer), "Spin Retry Count:", 17) == 0)
+	if (strncmp(trimmed, "Spin Retry Count:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->spin_retry_count);
 
-	if (strncmp(strtrim(buffer), "Spin Retry Count Normalized:", 28) == 0)
+	if (strncmp(trimmed, "Spin Retry Count Normalized:", 28) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->spin_retry_count_normalized);
 
-	if (strncmp(strtrim(buffer), "Spin Retry Count Worst:", 23) == 0)
+	if (strncmp(trimmed, "Spin Retry Count Worst:", 23) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->spin_retry_count_worst);
 
-	if (strncmp(strtrim(buffer), "Number of IOEDC Errors (Raw):", 29) == 0)
+	if (strncmp(trimmed, "Number of IOEDC Errors (Raw):", 29) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->ioedc_errors);
 
-	if (strncmp(strtrim(buffer), "CTO Count Total:", 16) == 0)
+	if (strncmp(trimmed, "CTO Count Total:", 16) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->cto_count_total);
       
-	if (strncmp(strtrim(buffer), "CTO Count Over 5s:", 18) == 0)
+	if (strncmp(trimmed, "CTO Count Over 5s:", 18) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->cto_count_over_5s);
 
-	if (strncmp(strtrim(buffer), "CTO Count Over 7.5s:", 20) == 0)
+	if (strncmp(trimmed, "CTO Count Over 7.5s:", 20) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->cto_count_over_7s);
 
-	if (strncmp(strtrim(buffer), "Total Flash LED (Assert) Events:", 32) == 0)
+	if (strncmp(trimmed, "Total Flash LED (Assert) Events:", 32) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->total_flash_led_assert_events);
   
-	if (strncmp(strtrim(buffer), "Index of the last Flash LED:", 28) == 0)
+	if (strncmp(trimmed, "Index of the last Flash LED:", 28) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->index_of_last_flash_led);
 
 	if (strstr(buffer, "Flash LED Event"))
 		flash_led_event++;
 
-	if ((strncmp(strtrim(buffer), "Event Information:", 18) == 0)  && (flash_led_event < MAX_NUMBER_OF_LED_EVENTS))
+	if ((strncmp(trimmed, "Event Information:", 18) == 0)  && (flash_led_event < MAX_NUMBER_OF_LED_EVENTS))
 		sscanf(buffer, "%*s%*s %"SCNx64"", &farm_ata_log_stats->led_event_information[flash_led_event]);
 
-	if ((strncmp(strtrim(buffer), "Timestamp of Event", 18) == 0)  && (flash_led_event < MAX_NUMBER_OF_LED_EVENTS))
+	if ((strncmp(trimmed, "Timestamp of Event", 18) == 0)  && (flash_led_event < MAX_NUMBER_OF_LED_EVENTS))
 		sscanf(buffer, "%*s%*s%*s%*d%*s %"SCNu64"", &farm_ata_log_stats->led_event_timestamp_of_event[flash_led_event]);
 
-	if ((strncmp(strtrim(buffer), "Power Cycle Event", 17) == 0)  && (flash_led_event < MAX_NUMBER_OF_LED_EVENTS))
+	if ((strncmp(trimmed, "Power Cycle Event", 17) == 0)  && (flash_led_event < MAX_NUMBER_OF_LED_EVENTS))
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->led_event_power_cycle_event[flash_led_event]);
 
-	if (strncmp(strtrim(buffer), "Uncorrectable errors:", 21) == 0)
+	if (strncmp(trimmed, "Uncorrectable errors:", 21) == 0)
 		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->uncorrectable_errors);
 
-	if (strncmp(strtrim(buffer), "Cumulative Lifetime Unrecoverable Read errors", 45) == 0)
+	if (strncmp(trimmed, "Cumulative Lifetime Unrecoverable Read errors", 45) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->cumulative_lifetime_unrecoverable_errors_due_to_erc);
 
 	if (strstr(buffer, "Cum Lifetime Unrecoverable"))
 		head_counter++;
 
-	if ((strncmp(strtrim(buffer), "Cumulative Lifetime Unrecoverable Read Repeating:", 49) == 0) && (head_counter < number_of_heads))
+	if ((strncmp(trimmed, "Cumulative Lifetime Unrecoverable Read Repeating:", 49) == 0) && (head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->head_cumulative_lifetime_unrecoverable_read_repeating[head_counter]);
 
-	if ((strncmp(strtrim(buffer), "Cumulative Lifetime Unrecoverable Read Unique:", 46) == 0)  && (head_counter < number_of_heads))
+	if ((strncmp(trimmed, "Cumulative Lifetime Unrecoverable Read Unique:", 46) == 0)  && (head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->head_cumulative_lifetime_unrecoverable_read_unique[head_counter]);
 
-	if (strncmp(strtrim(buffer), "Current Temperature (Celsius):", 30) == 0)
+	if (strncmp(trimmed, "Current Temperature (Celsius):", 30) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->current_temperature);
 
-	if (strncmp(strtrim(buffer), "Highest Temperature:", 20) == 0)
+	if (strncmp(trimmed, "Highest Temperature:", 20) == 0)
 		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->highest_temperature);
 
-	if (strncmp(strtrim(buffer), "Lowest Temperature:", 19) == 0)
+	if (strncmp(trimmed, "Lowest Temperature:", 19) == 0)
 		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_ata_log_stats->lowest_temperature);
 
-	if (strncmp(strtrim(buffer), "Average Short Term Temperature:", 31) == 0)
+	if (strncmp(trimmed, "Average Short Term Temperature:", 31) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->average_short_term_temperature);
 
-	if (strncmp(strtrim(buffer), "Average Long Term Temperature:", 30) == 0)
+	if (strncmp(trimmed, "Average Long Term Temperature:", 30) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->average_long_term_temperature);
 
-	if (strncmp(strtrim(buffer), "Highest Average Short Term Temperature:", 39) == 0)
+	if (strncmp(trimmed, "Highest Average Short Term Temperature:", 39) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->highest_average_short_term_temperature);
 
-	if (strncmp(strtrim(buffer), "Lowest Average Short Term Temperature:", 38) == 0)
+	if (strncmp(trimmed, "Lowest Average Short Term Temperature:", 38) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->lowest_average_short_term_temperature);
 
-	if (strncmp(strtrim(buffer), "Highest Average Long Term Temperature:", 38) == 0)
+	if (strncmp(trimmed, "Highest Average Long Term Temperature:", 38) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->highest_average_long_term_temperature);
 
-	if (strncmp(strtrim(buffer), "Lowest Average Long Term Temperature:", 37) == 0)
+	if (strncmp(trimmed, "Lowest Average Long Term Temperature:", 37) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->lowest_average_long_term_temperature);
 
-	if (strncmp(strtrim(buffer), "Time In Over Temperature", 24) == 0)
+	if (strncmp(trimmed, "Time In Over Temperature", 24) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->time_in_over_temperature);
 
-	if (strncmp(strtrim(buffer), "Time In Under Temperature", 25) == 0)
+	if (strncmp(trimmed, "Time In Under Temperature", 25) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->time_in_under_temperature);
 
-	if (strncmp(strtrim(buffer), "Specified Max Operating Temperature:", 36) == 0)
+	if (strncmp(trimmed, "Specified Max Operating Temperature:", 36) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->specified_max_operating_temperature);
 
-	if (strncmp(strtrim(buffer), "Specified Min Operating Temperature:", 36) == 0)
+	if (strncmp(trimmed, "Specified Min Operating Temperature:", 36) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->specified_min_operating_temperature);
 
-	if (strncmp(strtrim(buffer), "Current Relative Humidity:", 26) == 0)
+	if (strncmp(trimmed, "Current Relative Humidity:", 26) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->current_relative_humidity);
 
-	if (strncmp(strtrim(buffer), "Current Motor Power:", 20) == 0)
+	if (strncmp(trimmed, "Current Motor Power:", 20) == 0)
 		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->current_motor_power);
 
-	if (strncmp(strtrim(buffer), "Current 12 volts:", 17) == 0)
+	if (strncmp(trimmed, "Current 12 volts:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->current_12_volts);
 
-	if (strncmp(strtrim(buffer), "Minimum 12 volts:", 17) == 0)
+	if (strncmp(trimmed, "Minimum 12 volts:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->minimum_12_volts);
 
-	if (strncmp(strtrim(buffer), "Maximum 12 volts:", 17) == 0)
+	if (strncmp(trimmed, "Maximum 12 volts:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->maximum_12_volts);
 
-	if (strncmp(strtrim(buffer), "Current 5 volts:", 16) == 0)
+	if (strncmp(trimmed, "Current 5 volts:", 16) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->current_5_volts);
 
-	if (strncmp(strtrim(buffer), "Minimum 5 volts:", 16) == 0)
+	if (strncmp(trimmed, "Minimum 5 volts:", 16) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->minimum_5_volts);
 
-	if (strncmp(strtrim(buffer), "Maximum 5 volts:", 16) == 0)
+	if (strncmp(trimmed, "Maximum 5 volts:", 16) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->maximum_5_volts);
 
-	if (strncmp(strtrim(buffer), "12V Power Average:", 18) == 0)
+	if (strncmp(trimmed, "12V Power Average:", 18) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->_12v_power_average);
 
-	if (strncmp(strtrim(buffer), "12V Power Minimum:", 18) == 0)
+	if (strncmp(trimmed, "12V Power Minimum:", 18) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->_12v_power_minimum);
 
-	if (strncmp(strtrim(buffer), "12V Power Maximum:", 18) == 0)
+	if (strncmp(trimmed, "12V Power Maximum:", 18) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->_12v_power_maximum);
 
-	if (strncmp(strtrim(buffer), "5V Power Average:", 17) == 0)
+	if (strncmp(trimmed, "5V Power Average:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->_5v_power_average);
 
-	if (strncmp(strtrim(buffer), "5V Power Minimum:", 17) == 0)
+	if (strncmp(trimmed, "5V Power Minimum:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->_5v_power_minimum);
 
-	if (strncmp(strtrim(buffer), "5V Power Maximum:", 17) == 0)
+	if (strncmp(trimmed, "5V Power Maximum:", 17) == 0)
 		sscanf(buffer, "%*s%*s%*s %lf", &farm_ata_log_stats->_5v_power_maximum);
 
-	if (strncmp(strtrim(buffer), "Error Rate (SMART Attribute 1 Raw):", 35) == 0)
+	if (strncmp(trimmed, "Error Rate (SMART Attribute 1 Raw):", 35) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNx64"", &farm_ata_log_stats->error_rate_smart_1_raw);
 
-	if (strncmp(strtrim(buffer), "Error Rate (SMART Attribute 1 Normalized):", 42) == 0)
+	if (strncmp(trimmed, "Error Rate (SMART Attribute 1 Normalized):", 42) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->error_rate_smart_1_normalized);
 
-	if (strncmp(strtrim(buffer), "Error Rate (SMART Attribute 1 Worst):", 37) == 0)
+	if (strncmp(trimmed, "Error Rate (SMART Attribute 1 Worst):", 37) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->error_rate_smart_1_worst);
 
-	if (strncmp(strtrim(buffer), "Seek Error Rate (SMART Attr 7 Raw):", 35) == 0)
+	if (strncmp(trimmed, "Seek Error Rate (SMART Attr 7 Raw):", 35) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNx64"", &farm_ata_log_stats->seek_error_rate_smart_7_raw);
 
-	if (strncmp(strtrim(buffer), "Seek Error Rate (SMART Attr 7 Normalized):", 42) == 0)
+	if (strncmp(trimmed, "Seek Error Rate (SMART Attr 7 Normalized):", 42) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->seek_error_rate_smart_7_normalized);
 
-	if (strncmp(strtrim(buffer), "Seek Error Rate (SMART Attr 7 Worst):", 37) == 0)
+	if (strncmp(trimmed, "Seek Error Rate (SMART Attr 7 Worst):", 37) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->seek_error_rate_smart_7_worst);
 
-	if (strncmp(strtrim(buffer), "High Priority Unload Events:", 28) == 0)
+	if (strncmp(trimmed, "High Priority Unload Events:", 28) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->high_priority_unload_events);
 
-	if (strncmp(strtrim(buffer), "Helium Pressure Threshold Tripped:", 34) == 0)
+	if (strncmp(trimmed, "Helium Pressure Threshold Tripped:", 34) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->helium_pressure_threshold_tripped);
 
-	if (strncmp(strtrim(buffer), "LBAs Corrected By Parity Sector:", 32) == 0)
+	if (strncmp(trimmed, "LBAs Corrected By Parity Sector:", 32) == 0)
 		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->lbas_corrected_by_parity_sector);
 
 	if (strstr(buffer, "DVGA"))
 		dvga_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "DVGA Skip", 9) == 0)  && (dvga_head_counter < number_of_heads))
+	if ((strncmp(trimmed, "DVGA Skip", 9) == 0)  && (dvga_head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->dvga_skip_write_detected_head[dvga_head_counter]);
 
 	if (strstr(buffer, "RVGA"))
 		rvga_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "RVGA Skip", 9) == 0)  && (rvga_head_counter < number_of_heads))
+	if ((strncmp(trimmed, "RVGA Skip", 9) == 0)  && (rvga_head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->rvga_skip_write_detected_head[rvga_head_counter]);
 
 	if (strstr(buffer, "FVGA"))
 		fvga_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "FVGA Skip", 9) == 0)  && (fvga_head_counter < number_of_heads))
+	if ((strncmp(trimmed, "FVGA Skip", 9) == 0)  && (fvga_head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->fvga_skip_write_detected_head[fvga_head_counter]);
 
 	if (strstr(buffer, "Exceeded by Head"))
 		swdt_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "Skip Write Detect Threshold", 27) == 0)  && (swdt_head_counter < number_of_heads))
+	if ((strncmp(trimmed, "Skip Write Detect Threshold", 27) == 0)  && (swdt_head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->skip_write_detect_threshold_detect_head[swdt_head_counter]);
 
 	if (strstr(buffer, "Write Power On"))
 		wpo_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "Write Power On", 14) == 0)  && (wpo_head_counter < number_of_heads))
-		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->write_power_hrs_head[wpo_head_counter]);
+	if ((strncmp(trimmed, "Write Power On", 14) == 0)  && (wpo_head_counter < number_of_heads))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->write_power_secs_head[wpo_head_counter]);
 
 	if (strstr(buffer, "Resistance from"))
 		mr_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "MR Head Resistance from", 23) == 0)  && (mr_head_counter < number_of_heads))
+	if ((strncmp(trimmed, "MR Head Resistance from", 23) == 0)  && (mr_head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->mr_head_resistance_head[mr_head_counter]);
 
 	if (strstr(buffer, "Resistance by"))
 		mr2_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "Second MR Head", 14) == 0)  && (mr2_head_counter < number_of_heads))
+	if ((strncmp(trimmed, "Second MR Head", 14) == 0)  && (mr2_head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->second_mr_head_resistance_head[mr2_head_counter]);
 
 	if (strstr(buffer, "Reallocated Sectors by"))
 		realloc_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "Number of Reallocated Sectors by", 32) == 0)  && (realloc_head_counter < number_of_heads))
+	if ((strncmp(trimmed, "Number of Reallocated Sectors by", 32) == 0)  && (realloc_head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->number_reallocated_sectors_head[realloc_head_counter]);
 
 	if (strstr(buffer, "Candidate Sectors by"))
 		candidate_head_counter++;
 
-	if ((strncmp(strtrim(buffer), "Number of Reallocation", 22) == 0)  && (candidate_head_counter < number_of_heads))
+	if ((strncmp(trimmed, "Number of Reallocation", 22) == 0)  && (candidate_head_counter < number_of_heads))
 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_ata_log_stats->number_reallocation_candidate_sectors_head[candidate_head_counter]);
 
 	}
@@ -1171,14 +1843,14 @@ farm_ata_refresh_data(const char *name, struct farm_ata_log_stats *farm_ata_log_
 	 * recorded during fetch.
 	 *
 	 */
-	for (int i = number_of_heads; i < MAX_NUMBER_OF_SUPPORTED_HEADS; i++) {
+	for (i = number_of_heads; i < MAX_NUMBER_OF_SUPPORTED_HEADS; i++) {
 	        farm_ata_log_stats->head_cumulative_lifetime_unrecoverable_read_repeating[i] = -1;
         	farm_ata_log_stats->head_cumulative_lifetime_unrecoverable_read_unique[i] = -1;
         	farm_ata_log_stats->dvga_skip_write_detected_head[i] = -1;
         	farm_ata_log_stats->rvga_skip_write_detected_head[i] = -1;
         	farm_ata_log_stats->fvga_skip_write_detected_head[i] = -1;
         	farm_ata_log_stats->skip_write_detect_threshold_detect_head[i] = -1;
-        	farm_ata_log_stats->write_power_hrs_head[i] = -1;
+        	farm_ata_log_stats->write_power_secs_head[i] = -1;
         	farm_ata_log_stats->mr_head_resistance_head[i] = -1;
         	farm_ata_log_stats->second_mr_head_resistance_head[i] = -1;
 	        farm_ata_log_stats->number_reallocated_sectors_head[i]= -1;
@@ -1270,13 +1942,556 @@ farm_ata_refresh_per_head_stats(void)
                         per_head_stats->rvga_skip_write_detected_head  = dev->farm_ata_log_stats.rvga_skip_write_detected_head[i];
                         per_head_stats->fvga_skip_write_detected_head  = dev->farm_ata_log_stats.fvga_skip_write_detected_head[i];
                         per_head_stats->skip_write_detect_threshold_detect_head  = dev->farm_ata_log_stats.skip_write_detect_threshold_detect_head[i];
-                        per_head_stats->write_power_hrs_head  = dev->farm_ata_log_stats.write_power_hrs_head[i];
+                        per_head_stats->write_power_secs_head  = dev->farm_ata_log_stats.write_power_secs_head[i];
                         per_head_stats->mr_head_resistance_head  = dev->farm_ata_log_stats.mr_head_resistance_head[i];
                         per_head_stats->second_mr_head_resistance_head  = dev->farm_ata_log_stats.second_mr_head_resistance_head[i];
                         per_head_stats->number_reallocated_sectors_head  = dev->farm_ata_log_stats.number_reallocated_sectors_head[i];
                         per_head_stats->number_reallocation_candidate_sectors_head  = dev->farm_ata_log_stats.number_reallocation_candidate_sectors_head[i];
 
 		    	pmdaCacheStore(per_head_indom, PMDA_CACHE_ADD, inst_name, (void *)per_head_stats);
+                }
+	}
+	return 0;
+}
+
+int
+farm_scsi_refresh_data(const char *name, struct farm_scsi_log_stats *farm_scsi_log_stats)
+{
+	char buffer[4096], product_id[13], assembly_date[5] = {'\0'};
+	uint64_t number_of_heads = 0, i = 0;
+	int scanresult = 0;	
+	int mr_head_counter = -1, realloc_head_counter = -1, candidate_head_counter = -1;
+	int power_head_counter = - 1, repeat_head_counter = -1, unique_head_counter = -1;
+	int mr2_head_counter = -1, per_actuator_counter = -1, per_actuator_reallocation_counter = -1;	
+	FILE *pf;
+
+	pmsprintf(buffer, sizeof(buffer), "%s -l farm /dev/%s", farm_setup_stats, name);
+
+	if ((pf = popen(buffer, "r")) == NULL)
+		return -oserror();
+
+	while (fgets(buffer, sizeof(buffer)-1, pf) != NULL) {
+
+	char *trimmed = strtrim(buffer);
+
+	if (strncmp(trimmed, "FARM Log Version:", 17) == 0)
+		sscanf(buffer, "%*s%*s%*s %s", farm_scsi_log_stats->log_version);
+
+	if (strncmp(trimmed, "Pages Supported:", 16) == 0)
+		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_scsi_log_stats->pages_supported);
+
+	if (strncmp(trimmed, "Log Size:", 9) == 0)
+		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_scsi_log_stats->log_size);
+
+	if (strncmp(trimmed, "Heads Supported:", 16) == 0)
+		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_scsi_log_stats->heads_supported);
+
+	if (strncmp(trimmed, "Reason for Frame Capture:", 25) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->reason_for_frame_capture);
+
+	if (strncmp(trimmed, "Serial Number:", 14) == 0)
+		sscanf(buffer, "%*s%*s %s", farm_scsi_log_stats->serial_number);
+
+	if (strncmp(trimmed, "World Wide Name:", 16) == 0)
+		sscanf(buffer, "%*s%*s%*s %s", farm_scsi_log_stats->world_wide_name);
+
+	if (strncmp(trimmed, "Firmware Rev:", 13) == 0)
+		sscanf(buffer, "%*s%*s %s", farm_scsi_log_stats->firmware_revision);
+
+	if (strncmp(trimmed, "Device Interface:", 17) == 0)
+		sscanf(buffer, "%*s%*s %s", farm_scsi_log_stats->device_interface);
+
+	if (strncmp(trimmed, "Device Capacity in Sectors:", 27) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->device_capacity_in_sectors);
+
+	if (strncmp(trimmed, "Physical Sector Size:", 21) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->physical_sector_size);
+
+	if (strncmp(trimmed, "Logical Sector Size:", 20) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->logical_sector_size);
+
+	if (strncmp(trimmed, "Device Buffer Size (Bytes):", 27) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->device_buffer_size);
+
+	if (strncmp(trimmed, "Number of heads:", 16) == 0) {
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->number_of_heads);
+      
+		number_of_heads = farm_scsi_log_stats->number_of_heads;
+	}
+
+	if (strncmp(trimmed, "Device form factor:", 19) == 0)
+		sscanf(buffer, "%*s%*s%*s %[^\n]", farm_scsi_log_stats->device_form_factor);
+
+	if (strncmp(trimmed, "Rotation Rate (RPM):", 20) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->rotational_rate);
+
+	if (strncmp(trimmed, "Power on Hour:", 14) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->power_on_hours);
+
+	if (strncmp(trimmed, "Power Cycle count:", 18) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->power_cycle_count);
+
+	if (strncmp(trimmed, "Hardware Reset Count:", 21) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->hardware_reset_count);
+
+	if (strncmp(trimmed, "Date of Assembly (YYWW):", 24) == 0) {
+		scanresult = sscanf(buffer, "%*s%*s%*s%*s %s", assembly_date);
+
+		if (scanresult == 1) {
+			pmstrncpy(farm_scsi_log_stats->assembly_date, sizeof(farm_scsi_log_stats->assembly_date), assembly_date);
+		} else {
+			farm_scsi_log_stats->assembly_date[0] = '\0';
+		}
+	}
+	if (strncmp(trimmed, "Total Number of Read Commands:", 30) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->total_read_commands);
+
+	if (strncmp(trimmed, "Total Number of Write Commands:", 31) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->total_write_commands);
+
+	if (strncmp(trimmed, "Total Number of Random Read Cmds:", 33) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->total_random_read_commands);
+
+	if (strncmp(trimmed, "Total Number of Random Write Cmds:", 34) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->total_random_write_commands);
+
+	if (strncmp(trimmed, "Total Number of Other Commands:", 31) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->total_other_commands);
+
+	if (strncmp(trimmed, "Logical Sectors Written:", 24) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->logical_sectors_written);
+
+	if (strncmp(trimmed, "Logical Sectors Read:", 21) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->logical_sectors_read);
+
+	if (strncmp(trimmed, "Number of Read commands from 0-3.125%", 37) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->read_commands_0_3_lba_space);
+
+	if (strncmp(trimmed, "Number of Read commands from 3.125-25%", 38) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->read_commands_3_25_lba_space);
+
+	if (strncmp(trimmed, "Number of Read commands from 25-75%", 35) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->read_commands_25_75_lba_space);
+
+	if (strncmp(trimmed, "Number of Read commands from 75-100%", 36) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->read_commands_75_100_lba_space);
+
+	if (strncmp(trimmed, "Number of Write commands from 0-3.125%", 38) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->write_commands_0_3_lba_space);
+
+	if (strncmp(trimmed, "Number of Write commands from 3.125-25%", 39) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->write_commands_3_25_lba_space);
+
+	if (strncmp(trimmed, "Number of Write commands from 25-75%", 36) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->write_commands_25_75_lba_space);
+
+	if (strncmp(trimmed, "Number of Write commands from 75-100%", 37) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->write_commands_75_100_lba_space);
+
+	if (strncmp(trimmed, "Unrecoverable Read Errors:", 26) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->unrecoverable_read_errors);
+  
+	if (strncmp(trimmed, "Unrecoverable Write Errors:", 27) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->unrecoverable_write_errors);
+
+	if (strncmp(trimmed, "Number of Mechanical Start Failures:", 36) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->mechanical_start_failures);
+
+	if (strncmp(trimmed, "FRU code if smart trip from most recent SMART Frame:", 52) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->fru_code_most_recent_smart_frame);
+
+	if (strncmp(trimmed, "Invalid DWord Count Port A:", 27) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->invalid_dword_count_a);
+
+	if (strncmp(trimmed, "Invalid DWord Count Port B:", 27) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->invalid_dword_count_b);
+
+	if (strncmp(trimmed, "Disparity Error Count Port A:", 29) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->dispartiy_error_code_a);
+
+	if (strncmp(trimmed, "Disparity Error Count Port B:", 29) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->dispartiy_error_code_b);
+
+	if (strncmp(trimmed, "Loss Of DWord Sync Port A:", 26) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->loss_of_dword_sync_a);
+
+	if (strncmp(trimmed, "Loss Of DWord Sync Port B:", 26) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->loss_of_dword_sync_b);
+
+	if (strncmp(trimmed, "Phy Reset Problem Port A:", 25) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->phy_reset_problem_port_a);
+
+	if (strncmp(trimmed, "Phy Reset Problem Port B:", 25) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->phy_reset_problem_port_b);
+
+	if (strncmp(trimmed, "Current Temperature (Celsius):", 30) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->current_temperature);
+
+	if (strncmp(trimmed, "Highest Temperature:", 20) == 0)
+		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_scsi_log_stats->highest_temperature);
+
+	if (strncmp(trimmed, "Lowest Temperature:", 19) == 0)
+		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_scsi_log_stats->lowest_temperature);
+
+	if (strncmp(trimmed, "Specified Max Operating Temperature:", 36) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->specified_max_operating_temperature);
+
+	if (strncmp(trimmed, "Specified Min Operating Temperature:", 36) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->specified_min_operating_temperature);
+
+	if (strncmp(trimmed, "Current Relative Humidity:", 26) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->current_relative_humidity);
+
+	if (strncmp(trimmed, "Current Motor Power:", 20) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->current_motor_power);
+
+	if (strncmp(trimmed, "12V Power Average:", 18) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->_12v_power_average);
+
+	if (strncmp(trimmed, "12V Power Minimum:", 18) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->_12v_power_minimum);
+
+	if (strncmp(trimmed, "12V Power Maximum:", 18) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->_12v_power_maximum);
+
+	if (strncmp(trimmed, "5V Power Average:", 17) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->_5v_power_average);
+
+	if (strncmp(trimmed, "5V Power Minimum:", 17) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->_5v_power_minimum);
+
+	if (strncmp(trimmed, "5V Power Maximum:", 17) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->_5v_power_maximum);
+
+	if (strncmp(trimmed, "Helium Pressure Threshold Tripped:", 34) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->helium_pressure_threshold_tripped);
+
+	if (strncmp(trimmed, "Depopulation Head Mask:", 23) == 0)
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->depopulation_head_mask);
+
+	if (strncmp(trimmed, "Product ID:", 11) == 0) {
+		scanresult = sscanf(buffer, "%*s%*s %s", product_id);
+      
+		if (scanresult == 1) {
+			pmstrncpy(farm_scsi_log_stats->product_id, sizeof(farm_scsi_log_stats->product_id), product_id);
+		} else {
+			farm_scsi_log_stats->product_id[0] = '\0';
+		}
+	}
+
+	if (strncmp(trimmed, "Drive Recording Type:", 20) == 0)
+		sscanf(buffer, "%*s%*s%*S %s", farm_scsi_log_stats->drive_recording_type);
+
+	if (strncmp(trimmed, "Has Drive been Depopped:", 24) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->depopped);
+
+	if (strncmp(trimmed, "Max Number of Available Sectors for Reassignment:", 49) == 0)
+ 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->max_number_for_reassignment);
+
+	if (strncmp(trimmed, "Time to ready", 13) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->time_to_ready_last_power_cycle);
+
+	if (strncmp(trimmed, "Time drive is held", 18) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->time_drive_held_in_staggered_spin);
+
+	if (strncmp(trimmed, "Last Servo Spin up Time (ms):", 29) == 0)
+ 		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->spin_up_time);
+
+	if (strncmp(trimmed, "Current 12 Volts (mV):", 17) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->current_12_volts);
+
+	if (strncmp(trimmed, "Minimum 12 Volts (mV):", 17) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->minimum_12_volts);
+
+	if (strncmp(trimmed, "Maximum 12 Volts (mV):", 17) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->maximum_12_volts);
+
+	if (strncmp(trimmed, "Current 5 Volts (mV):", 16) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->current_5_volts);
+
+	if (strncmp(trimmed, "Minimum 5 Volts (mV):", 16) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->minimum_5_volts);
+
+	if (strncmp(trimmed, "Maximum 5 Volts (mV):", 16) == 0)
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->maximum_5_volts);
+
+	if (strstr(buffer, "MR Head Resistance"))
+		mr_head_counter++;
+
+	if ((strncmp(trimmed, "MR Head Resistance", 18) == 0)  && (mr_head_counter < number_of_heads))
+		sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->mr_head_resistance[mr_head_counter]);
+
+	if (strstr(buffer, "Number of Reallocated Sectors"))
+		realloc_head_counter++;
+
+	if ((strncmp(trimmed, "Number of Reallocated Sectors", 29) == 0)  && (realloc_head_counter < number_of_heads))
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->reallocated_sectors[realloc_head_counter]);
+
+	if (strstr(buffer, "Number of Reallocation"))
+		candidate_head_counter++;
+
+	if ((strncmp(trimmed, "Number of Reallocation Candidate Sectors", 40) == 0)  && (candidate_head_counter < number_of_heads))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->reallocated_candidate_sectors[candidate_head_counter]);
+
+	if (strstr(buffer, "Write Power On"))
+		power_head_counter++;
+
+	if ((strncmp(trimmed, "Write Power On (hrs)", 20) == 0)  && (power_head_counter < number_of_heads))
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->head_power_on_hours[power_head_counter]);
+
+	if (strstr(buffer, "Cum Lifetime Unrecoverable Read Repeating"))
+		repeat_head_counter++;
+
+	if ((strncmp(trimmed, "Cum Lifetime Unrecoverable Read Repeating", 41) == 0)  && (repeat_head_counter < number_of_heads))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->head_cumulative_lifetime_unrecoverable_read_repeating[repeat_head_counter]);
+
+	if (strstr(buffer, "Cum Lifetime Unrecoverable Read Unique"))
+		unique_head_counter++;
+
+	if ((strncmp(trimmed, "Cum Lifetime Unrecoverable Read Unique", 38) == 0)  && (unique_head_counter < number_of_heads))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->head_cumulative_lifetime_unrecoverable_read_unique[unique_head_counter]);
+
+	if (strstr(buffer, "Second MR"))
+		mr2_head_counter++;
+
+	if ((strncmp(trimmed, "Second MR Head Resistance", 25) == 0)  && (mr2_head_counter < number_of_heads))
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->second_mr_head_resistance[mr2_head_counter]);
+
+	if (strstr(buffer, "FARM Log Actuator Information"))
+		/* The per_actuator_counter will start at -1 so the first actuator is actuator_0 */
+		per_actuator_counter++;
+	
+	if ((strncmp(trimmed, "Head Load Events", 16) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->head_load_events[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "TimeStamp of last IDD test", 26) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->timestamp_of_last_idd_test[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Sub-Command of last IDD test", 28) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->sub_command_of_last_idd_test[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Number of Reallocated Sector Reclamations", 41) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->number_of_reallocated_sector_reclamations[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Servo Status", 12) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s %"SCNu64"", &farm_scsi_log_stats->servo_status[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Number of Slipped Sectors After IDD Scan", 40) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->number_of_slipped_sectors_after_idd_scan[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Number of Resident Reallocated Sectors After IDD Scan", 53) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->number_of_resident_reallocated_sectors_after_idd_scan[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Successfully Scrubbed Sectors After IDD Scan", 44) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->successfully_scrubbed_sectors_after_idd_scan[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Successfully Scrubbed Sectors After IDD Scan", 44) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->successfully_scrubbed_sectors_after_idd_scan[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Number of DOS Scans Performed", 29) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->number_of_dos_scans_performed[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Number of LBAs Corrected by ISP", 30) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->number_of_lbas_corrected_by_isp[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Number of Valid Parity Sectors", 28) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->number_of_valid_parity_sectors[per_actuator_counter]);
+
+	if ((strncmp(trimmed, "Number of LBAs Corrected by Parity Sector", 41) == 0) && (per_actuator_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+		sscanf(buffer, "%*s%*s%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->number_of_lbas_corrected_by_parity_sector[per_actuator_counter]);
+
+	if (strstr(buffer, "FARM Log Actuator 0x00 Reallocation"))
+		/* The per_actuator_counter will start at -1 so the first actuator is actuator_0 */
+		per_actuator_reallocation_counter++;
+
+	if (per_actuator_reallocation_counter >= 0) {
+		if ((strncmp(trimmed, "Number of Reallocated Sectors", 29) == 0) && (per_actuator_reallocation_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+			sscanf(buffer, "%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->actuator_number_reallocated_sectors[per_actuator_reallocation_counter]);
+
+		if ((strncmp(trimmed, "Number of Reallocated Candidate Sectors", 39) == 0) && (per_actuator_reallocation_counter < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS))
+			sscanf(buffer, "%*s%*s%*s%*s%*s %"SCNu64"", &farm_scsi_log_stats->actuator_number_recallocated_candidate_sectors[per_actuator_reallocation_counter]);
+	}
+
+	}
+	pclose(pf);
+
+	/* Set "-1" for the rest of the values where we do not have heads
+	 * present for the metrics that are per head, we can mark no value
+	 * recorded during fetch.
+	 *
+	 */
+	for (i = number_of_heads; i < MAX_NUMBER_OF_SUPPORTED_HEADS; i++) {
+	        farm_scsi_log_stats->mr_head_resistance[i] = -1;
+        	farm_scsi_log_stats->reallocated_sectors[i] = -1;
+        	farm_scsi_log_stats->reallocated_candidate_sectors[i] = -1;
+        	farm_scsi_log_stats->head_power_on_hours[i] = -1;
+        	farm_scsi_log_stats->head_cumulative_lifetime_unrecoverable_read_repeating[i] = -1;
+        	farm_scsi_log_stats->head_cumulative_lifetime_unrecoverable_read_unique[i] = -1;
+        	farm_scsi_log_stats->second_mr_head_resistance[i] = -1;
+	 }
+	
+	// Correct number of actuator count by adding +1 (we started the counter from -1)
+	farm_scsi_log_stats->number_of_actuators = per_actuator_counter + 1;
+	 
+	 for (i = farm_scsi_log_stats->number_of_actuators; i < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS; i++) {
+	        farm_scsi_log_stats->head_load_events[i] = -1;
+	        farm_scsi_log_stats->timestamp_of_last_idd_test[i] = -1;
+	        farm_scsi_log_stats->sub_command_of_last_idd_test[i] = -1;
+	        farm_scsi_log_stats->number_of_reallocated_sector_reclamations[i] = -1;
+	        farm_scsi_log_stats->servo_status[i] = -1;
+	        farm_scsi_log_stats->number_of_slipped_sectors_after_idd_scan[i] = -1;
+	        farm_scsi_log_stats->number_of_resident_reallocated_sectors_after_idd_scan[i] = -1;
+	        farm_scsi_log_stats->successfully_scrubbed_sectors_after_idd_scan[i] = -1;
+	        farm_scsi_log_stats->number_of_dos_scans_performed[i] = -1;
+	        farm_scsi_log_stats->number_of_lbas_corrected_by_isp[i] = -1;
+	        farm_scsi_log_stats->number_of_valid_parity_sectors[i] = -1;
+	        farm_scsi_log_stats->number_of_lbas_corrected_by_parity_sector[i] = -1;
+	 }
+	 
+	for (i = farm_scsi_log_stats->number_of_actuators; i < MAX_NUMBER_OF_SUPPORTED_SCSI_ACTUATORS; i++) {
+	        farm_scsi_log_stats->actuator_number_reallocated_sectors[i] = -1;
+	        farm_scsi_log_stats->actuator_number_recallocated_candidate_sectors[i] = -1;
+	 }
+	
+	return 0;
+}
+
+int 
+farm_scsi_refresh_per_head_stats(void)
+{
+	char inst_name[128], *dev_name;
+	struct seagate_disk *dev;
+        int inst, sts;
+
+	pmInDom disk_indom = INDOM(SCSI_DISK_INDOM);
+	pmInDom per_head_indom = INDOM(SCSI_PER_HEAD_INDOM);
+
+	pmdaCacheOp(per_head_indom, PMDA_CACHE_INACTIVE);
+
+	for (pmdaCacheOp(disk_indom, PMDA_CACHE_WALK_REWIND);;) {
+		if ((inst = pmdaCacheOp(disk_indom, PMDA_CACHE_WALK_NEXT)) < 0)
+			break;
+		if (!pmdaCacheLookup(disk_indom, inst, &dev_name, (void **)&dev) || !dev)
+			continue;
+
+                for (int i = 0; i < dev->farm_scsi_log_stats.number_of_heads; i++) {
+                        pmsprintf(inst_name, sizeof(inst_name), "%s::head_%d", dev_name, i);
+
+                        struct farm_scsi_per_head_stats *scsi_per_head_stats;
+
+	                sts = pmdaCacheLookupName(per_head_indom, inst_name, NULL, (void **)&scsi_per_head_stats);
+		                if (sts == PM_ERR_INST || (sts >=0 && scsi_per_head_stats == NULL)) {
+			                scsi_per_head_stats = calloc(1, sizeof(struct farm_scsi_per_head_stats));
+			                if (scsi_per_head_stats == NULL) {
+				                return PM_ERR_AGAIN;
+			                }
+		                }
+		                else if (sts < 0)
+			                continue;
+
+                        scsi_per_head_stats->head_id = i;
+		        scsi_per_head_stats->mr_head_resistance = dev->farm_scsi_log_stats.mr_head_resistance[i];
+                        scsi_per_head_stats->reallocated_sectors  = dev->farm_scsi_log_stats.reallocated_sectors[i];
+	                scsi_per_head_stats->reallocated_candidate_sectors  = dev->farm_scsi_log_stats.reallocated_candidate_sectors[i];
+                        scsi_per_head_stats->power_on_hours  = dev->farm_scsi_log_stats.head_power_on_hours[i];
+                        scsi_per_head_stats->head_cumulative_lifetime_unrecoverable_read_repeating  = dev->farm_scsi_log_stats.head_cumulative_lifetime_unrecoverable_read_repeating[i];
+                        scsi_per_head_stats->head_cumulative_lifetime_unrecoverable_read_unique  = dev->farm_scsi_log_stats.head_cumulative_lifetime_unrecoverable_read_unique[i];
+                        scsi_per_head_stats->second_mr_head_resistance  = dev->farm_scsi_log_stats.second_mr_head_resistance[i];
+
+		    	pmdaCacheStore(per_head_indom, PMDA_CACHE_ADD, inst_name, (void *)scsi_per_head_stats);
+                }
+	}
+	return 0;
+}
+
+int
+farm_scsi_refresh_per_actuator_stats(void){
+	char inst_name[128], *dev_name;
+	struct seagate_disk *dev;
+        int inst, sts;
+
+	pmInDom disk_indom = INDOM(SCSI_DISK_INDOM);
+	pmInDom per_actuator_indom = INDOM(SCSI_ACTUATOR_INDOM);
+
+	pmdaCacheOp(per_actuator_indom, PMDA_CACHE_INACTIVE);
+
+	for (pmdaCacheOp(disk_indom, PMDA_CACHE_WALK_REWIND);;) {
+		if ((inst = pmdaCacheOp(disk_indom, PMDA_CACHE_WALK_NEXT)) < 0)
+			break;
+		if (!pmdaCacheLookup(disk_indom, inst, &dev_name, (void **)&dev) || !dev)
+			continue;
+
+                for (int i = 0; i < dev->farm_scsi_log_stats.number_of_actuators; i++) {
+                        pmsprintf(inst_name, sizeof(inst_name), "%s::actuator_%d", dev_name, i);
+
+                        struct farm_scsi_per_actuator_stats *scsi_per_actuator_stats;
+
+	                sts = pmdaCacheLookupName(per_actuator_indom, inst_name, NULL, (void **)&scsi_per_actuator_stats);
+		                if (sts == PM_ERR_INST || (sts >=0 && scsi_per_actuator_stats == NULL)) {
+			                scsi_per_actuator_stats = calloc(1, sizeof(struct farm_scsi_per_actuator_stats));
+			                if (scsi_per_actuator_stats == NULL) {
+				                return PM_ERR_AGAIN;
+			                }
+		                }
+		                else if (sts < 0)
+			                continue;
+
+                        scsi_per_actuator_stats->actuator_id = i;
+		        scsi_per_actuator_stats->head_load_events = dev->farm_scsi_log_stats.head_load_events[i];
+                        scsi_per_actuator_stats->timestamp_of_last_idd_test  = dev->farm_scsi_log_stats.timestamp_of_last_idd_test[i];
+                        scsi_per_actuator_stats->sub_command_of_last_idd_test = dev->farm_scsi_log_stats.sub_command_of_last_idd_test[i];
+	                scsi_per_actuator_stats->number_of_reallocated_sector_reclamations  = dev->farm_scsi_log_stats.number_of_reallocated_sector_reclamations[i];
+                        scsi_per_actuator_stats->servo_status  = dev->farm_scsi_log_stats.servo_status[i];
+                        scsi_per_actuator_stats->number_of_slipped_sectors_after_idd_scan  = dev->farm_scsi_log_stats.number_of_slipped_sectors_after_idd_scan[i];
+                        scsi_per_actuator_stats->successfully_scrubbed_sectors_after_idd_scan  = dev->farm_scsi_log_stats.successfully_scrubbed_sectors_after_idd_scan[i];
+                        scsi_per_actuator_stats->number_of_dos_scans_performed  = dev->farm_scsi_log_stats.number_of_dos_scans_performed[i];
+                        scsi_per_actuator_stats->number_of_lbas_corrected_by_isp  = dev->farm_scsi_log_stats.number_of_lbas_corrected_by_isp[i];
+                        scsi_per_actuator_stats->number_of_valid_parity_sectors  = dev->farm_scsi_log_stats.number_of_valid_parity_sectors[i];
+                        scsi_per_actuator_stats->number_of_lbas_corrected_by_parity_sector  = dev->farm_scsi_log_stats.number_of_lbas_corrected_by_parity_sector[i];
+
+		    	pmdaCacheStore(per_actuator_indom, PMDA_CACHE_ADD, inst_name, (void *)scsi_per_actuator_stats);
+                }
+	}
+	return 0;
+}
+
+int
+farm_scsi_refresh_per_actuator_reallocation_stats(void){
+	char inst_name[128], *dev_name;
+	struct seagate_disk *dev;
+        int inst, sts;
+
+	pmInDom disk_indom = INDOM(SCSI_DISK_INDOM);
+	pmInDom per_actuator_realloc_indom = INDOM(SCSI_ACTUATOR_REALLOCATION_INDOM);
+
+	pmdaCacheOp(per_actuator_realloc_indom, PMDA_CACHE_INACTIVE);
+
+	for (pmdaCacheOp(disk_indom, PMDA_CACHE_WALK_REWIND);;) {
+		if ((inst = pmdaCacheOp(disk_indom, PMDA_CACHE_WALK_NEXT)) < 0)
+			break;
+		if (!pmdaCacheLookup(disk_indom, inst, &dev_name, (void **)&dev) || !dev)
+			continue;
+
+                for (int i = 0; i < dev->farm_scsi_log_stats.number_of_actuators; i++) {
+                        pmsprintf(inst_name, sizeof(inst_name), "%s::actuator_%d", dev_name, i);
+
+                        struct farm_scsi_per_actuator_reallocation *scsi_per_actuator_reallocation_stats;
+
+	                sts = pmdaCacheLookupName(per_actuator_realloc_indom, inst_name, NULL, (void **)&scsi_per_actuator_reallocation_stats);
+		                if (sts == PM_ERR_INST || (sts >=0 && scsi_per_actuator_reallocation_stats == NULL)) {
+			                scsi_per_actuator_reallocation_stats = calloc(1, sizeof(struct farm_scsi_per_actuator_reallocation));
+			                if (scsi_per_actuator_reallocation_stats == NULL) {
+				                return PM_ERR_AGAIN;
+			                }
+		                }
+		                else if (sts < 0)
+			                continue;
+
+                        scsi_per_actuator_reallocation_stats->actuator_id = i;
+		        scsi_per_actuator_reallocation_stats->actuator_number_reallocated_sectors = dev->farm_scsi_log_stats.actuator_number_reallocated_sectors[i];
+                        scsi_per_actuator_reallocation_stats->actuator_number_recallocated_candidate_sectors  = dev->farm_scsi_log_stats.actuator_number_recallocated_candidate_sectors[i];
+
+		    	pmdaCacheStore(per_actuator_realloc_indom, PMDA_CACHE_ADD, inst_name, (void *)scsi_per_actuator_reallocation_stats);
                 }
 	}
 	return 0;

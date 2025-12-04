@@ -35,12 +35,13 @@ _cleanup()
     then
 	[ -f $tmp.control ] && \
 	    $sudo cp $tmp.control $PCP_PMLOGGERCONTROL_PATH
-	[ -d $tmp.control.d ] && \
-	    $sudo mv $tmp.control.d $PCP_PMLOGGERCONTROL_PATH.d
-	_service pcp restart 2>&1 | _filter_pcp_start
+	[ -d $PCP_PMLOGGERCONTROL_PATH.d-$seq ] && \
+	    $sudo mv $PCP_PMLOGGERCONTROL_PATH.d-$seq $PCP_PMLOGGERCONTROL_PATH.d
 	_restore_auto_restart pmcd
-	_restore_auto_restart pmlogger
+	_service pmcd restart 2>&1 | _filter_pcp_restart
 	_wait_for_pmcd
+	_restore_auto_restart pmlogger
+	_service pmlogger restart 2>&1 | _filter_pcp_restart
 	_wait_for_pmlogger
 	_needclean=false
     fi
@@ -65,7 +66,12 @@ _filter()
 # start pmcd ...
 #
 _get_pids_by_name -a pmlogger >$tmp.pid
-if ! _service pcp stop >$tmp.out 2>&1; then _exit 1; fi
+if ! _service pmlogger stop >$tmp.out 2>&1; then _exit 1; fi \
+| _filter_pcp_stop
+_wait_pmlogger_end || _exit 1
+if ! _service pmcd stop >>$tmp.out 2>&1; then _exit 1; fi \
+| _filter_pcp_stop
+_wait_pmcd_end || _exit 1
 cat $tmp.out >$seq_full
 
 # wait for all of the extant pmloggers to exit
@@ -79,7 +85,7 @@ then
 fi
 
 $sudo cp $PCP_PMLOGGERCONTROL_PATH $tmp.control
-$sudo mv $PCP_PMLOGGERCONTROL_PATH.d $tmp.control.d
+$sudo mv $PCP_PMLOGGERCONTROL_PATH.d $PCP_PMLOGGERCONTROL_PATH.d-$seq
 
 export PMLOGGER_CHECK_SKIP_LOGCONF=yes
 
@@ -98,14 +104,17 @@ $sudo cp $tmp.tmp $PCP_PMLOGGERCONTROL_PATH
 $sudo mkdir -p $LOGGING_DIR/${myhost}-one >/dev/null 2>&1
 $sudo mkdir -p $LOGGING_DIR/${myhost}-two >/dev/null 2>&1
 $sudo mkdir -p $LOGGING_DIR/no.such.host.pcp.io >/dev/null 2>&1
-id pcp >/dev/null 2>&1 && $sudo chown -R pcp:pcp $LOGGING_DIR
+id pcp >/dev/null 2>&1 && $sudo chown -R $PCP_USER:$PCP_GROUP $LOGGING_DIR
 echo "+++ before pcp start ..." >>$seq_full
 $PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep '/[p]mlogger( |$)' >>$seq_full
 echo "+++" >>$seq_full
-if ! _service pcp start >$tmp.out 2>&1; then _exit 1; fi
-cat $tmp.out >>$seq_full
+if ! _service pmcd start >$tmp.out 2>&1; then _exit 1; fi \
+| _filter_pcp_start
 _wait_for_pmcd || _exit 1
+if ! _service pmlogger start >>$tmp.out 2>&1; then _exit 1; fi \
+| _filter_pcp_start
 _wait_for_pmlogger || _exit 1
+cat $tmp.out >>$seq_full
 echo "+++ after pcp start ..." >>$seq_full
 $PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep '/[p]mlogger( |$)' >>$seq_full
 echo "+++" >>$seq_full
@@ -170,6 +179,9 @@ echo "=== pmlogger_check ===" >>$seq_full
 cd /var/tmp
 $sudo -u $PCP_USER -g $PCP_GROUP $PCP_BINADM_DIR/pmlogger_check -l $PMCHECK_LOG
 cd $here
+# give any failing pmloggers a chance to exit
+#
+sleep 2
 echo "+++ after pmlogger_check ..." >>$seq_full
 $PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep '/[p]mlogger( |$)' >>$seq_full
 echo "+++" >>$seq_full

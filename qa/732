@@ -32,7 +32,7 @@ do
     base=`basename $tgz`
 
     echo "== Checking metric descriptors and values - $base"
-    pminfo -L -K clear -K add,60,$pmda -f rpc nfs nfs3 nfs4
+    pminfo -L -K clear -K add,60,$pmda -f rpc nfs nfs3 nfs4.client nfs4.server.calls nfs4.server.reqs
     echo && echo "== done" && echo
     cd $here
 done

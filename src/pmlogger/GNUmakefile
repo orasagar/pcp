@@ -24,28 +24,31 @@ OTHERS	= pmnewlog.sh control rc_pmlogger rc_wrapper \
 	  pmlogger_farm.sh pmlogger_farm_check.service \
 	  pmlogger_farm_check.timer pmlogger_farm_check.service \
 	  pmlogger.pmcheck
-LDIRT	= crontab crontab.daily_report pmlogger.service \
-	  pmlogger_daily.service \
-	  pmlogger_check.service pmlogger_farm.service pmlogger_farm_check.service
+GENSCRIPT = crontab crontab.daily_report pmlogger.service \
+	  pmlogger_daily.service pmlogger_check.service \
+	  pmlogger_farm.service pmlogger_farm_check.service
+LDIRT	= $(GENSCRIPT)
 
 ifeq ($(TARGET_OS),linux)
 CRONTAB_USER = $(PCP_USER)
 CRONTAB_PATH = $(PCP_ETC_DIR)/cron.d/pcp-pmlogger
+ifeq ($(ENABLE_SYSTEMD),true)
+CRONTAB_INSTALL = $(PCP_SHARE_DIR)/cron.d/pcp-pmlogger
+else
+CRONTAB_INSTALL = $(CRONTAB_PATH)
+endif
 else
 CRONTAB_USER =
 CRONTAB_PATH = $(PCP_SYSCONF_DIR)/pmlogger/crontab
+CRONTAB_INSTALL = $(CRONTAB_PATH)
 endif
-CRONTAB_DAILY_REPORT_PATH = $(CRONTAB_PATH)-daily-report
+CRONTAB_DAILY_REPORT_INSTALL = $(CRONTAB_INSTALL)-daily-report
 
-default:: $(LDIRT)
-
-default:: $(SUBDIRS)
+default: $(GENSCRIPT) $(SUBDIRS)
 	$(SUBDIRS_MAKERULE)
 
-install:: $(SUBDIRS)
+install: default $(SUBDIRS)
 	$(SUBDIRS_MAKERULE)
-
-install:: default
 	$(INSTALL) -m 775 -o $(PCP_USER) -g $(PCP_GROUP) -d $(PCP_VAR_DIR)/config/pmlogger
 	$(INSTALL) -m 644 pmlogger_farm.defaults $(PCP_SYSCONFIG_DIR)/pmlogger_farm
 	$(INSTALL) -m 644 pmlogger.defaults $(PCP_SYSCONFIG_DIR)/pmlogger
@@ -63,21 +66,25 @@ install:: default
 	$(INSTALL) -m 755 pmlogger_merge.sh $(PCP_BINADM_DIR)/pmlogger_merge$(SHELLSUFFIX)
 	$(INSTALL) -m 755 pmlogger_rewrite.sh $(PCP_BINADM_DIR)/pmlogger_rewrite$(SHELLSUFFIX)
 	$(INSTALL) -m 755 rc_wrapper $(PCP_RC_DIR)/pmlogger
-	$(INSTALL) -m 755 rc_pmlogger $(PCP_SYSCONF_DIR)/pmlogger/rc
+	$(INSTALL) -m 755 rc_pmlogger $(PCP_SERVICES_DIR)/pmlogger
 ifeq ($(ENABLE_SYSTEMD),true)
 	$(INSTALL) -m 644 pmlogger.service $(PCP_SYSTEMDUNIT_DIR)/pmlogger.service
-	$(INSTALL) -m 644 pmlogger_daily.timer $(PCP_SYSTEMDUNIT_DIR)/pmlogger_daily.timer
 	$(INSTALL) -m 644 pmlogger_farm.service $(PCP_SYSTEMDUNIT_DIR)/pmlogger_farm.service
 	$(INSTALL) -m 644 pmlogger_farm_check.service $(PCP_SYSTEMDUNIT_DIR)/pmlogger_farm_check.service
 	$(INSTALL) -m 644 pmlogger_farm_check.timer $(PCP_SYSTEMDUNIT_DIR)/pmlogger_farm_check.timer
 	$(INSTALL) -m 644 pmlogger_daily.service $(PCP_SYSTEMDUNIT_DIR)/pmlogger_daily.service
-	$(INSTALL) -m 644 pmlogger_check.timer $(PCP_SYSTEMDUNIT_DIR)/pmlogger_check.timer
+	$(INSTALL) -m 644 pmlogger_daily.timer $(PCP_SYSTEMDUNIT_DIR)/pmlogger_daily.timer
 	$(INSTALL) -m 644 pmlogger_check.service $(PCP_SYSTEMDUNIT_DIR)/pmlogger_check.service
+	$(INSTALL) -m 644 pmlogger_check.timer $(PCP_SYSTEMDUNIT_DIR)/pmlogger_check.timer
 	$(INSTALL) -m 644 pmlogger_timers.sysconfig $(PCP_SYSCONFIG_DIR)/pmlogger_timers
-else
-	$(INSTALL) -m 755 -d `dirname $(CRONTAB_PATH)`
-	$(INSTALL) -m 644 crontab $(CRONTAB_PATH)
-	$(INSTALL) -m 644 crontab.daily_report $(CRONTAB_DAILY_REPORT_PATH)
+endif
+	$(INSTALL) -m 755 -d `dirname $(CRONTAB_INSTALL)`
+	$(INSTALL) -m 644 crontab $(CRONTAB_INSTALL)
+	$(INSTALL) -m 644 crontab.daily_report $(CRONTAB_DAILY_REPORT_INSTALL)
+ifeq ($(TARGET_OS),linux)
+ifeq ($(ENABLE_SYSTEMD),true)
+	$(INSTALL) -m 644 crontab.README $(PCP_SHARE_DIR)/cron.d/README
+endif
 endif
 	$(INSTALL) -m 775 -o $(PCP_USER) -g $(PCP_GROUP) -d $(PCP_LOG_DIR)/pmlogger
 	$(INSTALL) -m 775 -o $(PCP_USER) -g $(PCP_GROUP) -d $(PCP_TMP_DIR)/pmlogger
@@ -94,6 +101,7 @@ install_pcp : install
 
 pmlogger.service : pmlogger.service.in
 	$(SED) <$< >$@ \
+	    -e 's;@PCP_SERVICES_DIR@;'$(PCP_SERVICES_DIR)';' \
 	    -e 's;@PCP_SYSCONF_DIR@;'$(PCP_SYSCONF_DIR)';' \
 	    -e 's;@PCP_RUN_DIR@;'$(PCP_RUN_DIR)';' \
 	    -e 's;@PCP_GROUP@;'$(PCP_GROUP)';' \
@@ -142,7 +150,14 @@ pmlogger_check.service : pmlogger_check.service.in
 	# END
 
 crontab : crontab.in
-	$(SED) -e 's;@user@;'$(CRONTAB_USER)';' -e 's;@path@;'$(PCP_BINADM_DIR)';' $< > $@
+	$(SED) <$< > $@ \
+	    -e 's;@user@;'$(CRONTAB_USER)';' \
+	    -e 's;@path@;'$(PCP_BINADM_DIR)';' \
+	# END
 
 crontab.daily_report : crontab.daily_report.in
-	$(SED) -e 's;@user@;'$(CRONTAB_USER)';' -e 's;@path@;'$(PCP_BINADM_DIR)';' -e 's;@sapath@;'$(PCP_SA_DIR)';' $< > $@
+	$(SED) <$< > $@ \
+	    -e 's;@user@;'$(CRONTAB_USER)';'
+	    -e 's;@path@;'$(PCP_BINADM_DIR)';'
+	    -e 's;@sapath@;'$(PCP_SA_DIR)';' \
+	# END

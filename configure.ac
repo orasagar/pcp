@@ -1,5 +1,5 @@
 dnl
-dnl Copyright (c) 2012-2023 Red Hat.
+dnl Copyright (c) 2012-2025 Red Hat.
 dnl Copyright (c) 2008 Aconex.  All Rights Reserved.
 dnl Copyright (c) 2000-2004,2008 Silicon Graphics, Inc.  All Rights Reserved.
 dnl
@@ -13,6 +13,8 @@ dnl WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
 dnl or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 dnl for more details.
 dnl
+
+configopts="`rpmbuild --eval '--exec-prefix=%{_exec_prefix} --bindir=%{_bindir} --sbindir=%{_sbindir} --sysconfdir=%{_sysconfdir} --datadir=%{_datadir} --includedir=%{_includedir} --libdir=%{_libdir} --libexecdir=%{_libexecdir} --localstatedir=%{_localstatedir} --sharedstatedir=%{_sharedstatedir} --mandir=%{_mandir} --prefix=%{_prefix}' 2>/dev/null`"
 
 dnl unpacking check - this file must exist
 AC_INIT
@@ -31,6 +33,12 @@ AC_ARG_WITH([optimization],
 		    [enable optimization for C/C++ code (default is yes)])],
     [use_optimization=$withval; PACKAGE_CONFIGURE="$PACKAGE_CONFIGURE --with-optimization=$withval"],
     [use_optimizaton=yes])
+
+AC_ARG_WITH([non-debug],
+    [AS_HELP_STRING([--with-non-debug],
+		    [enable non-debug builds for C/C++ code (default is no)])],
+    [use_ndebug=$withval; PACKAGE_CONFIGURE="$PACKAGE_CONFIGURE --with-non-debug=$withval"],
+    [use_ndebug=no])
 
 AC_ARG_WITH([gperftools],
     [AS_HELP_STRING([--with-gperftools],
@@ -270,7 +278,7 @@ then
     pcp_ps_all_flags=-efw
 elif test $target_os = darwin
 then
-    AC_DEFINE(IS_DARWIN, [1], [Platform is Darwin (Mac OS X)])
+    AC_DEFINE(IS_DARWIN, [1], [Platform is Darwin (macOS)])
     target_distro=macosx
     export CFLAGS="-fPIC -no-cpp-precomp -fno-strict-aliasing"
     pcp_platform_paths='/usr/local/bin:/opt/homebrew/bin'
@@ -353,6 +361,13 @@ else
     $gcc_debug && optimization="$optimization -g"
 fi
 AC_SUBST(optimization)
+
+dnl optionally disable the use of <assert.h> functionality from C and C++ code
+if test "$use_ndebug" = yes
+then
+    CFLAGS="$CFLAGS -DNDEBUG"
+    AC_MSG_NOTICE([Compiling with the NDEBUG macro set (non-debug)])
+fi
 
 PKG_PROG_PKG_CONFIG
 if test -z "$PKG_CONFIG"; then
@@ -506,13 +521,12 @@ AC_SUBST(PCFLAGS)
 AC_SUBST(PLDFLAGS)
 
 dnl we have some constraints around the packing of pmResults of various
-dnl flavours and Python modules handling of pmHighResResult
+dnl flavours and Python modules handling of pmResult
 dnl 1) we need the offset of the numpmid field in __pmResult to be at least as
-dnl    big as the offset of the numpmid field in pmResult _and_ pmHighResResult
+dnl    big as the offset of the numpmid field in pmResult_v2 _and_ pmResult
 dnl    (for the tricky games in libpcp to minimize copying)
 dnl 2) we need to know if the compiler is adding padding between the timestamp
-dnl    and the numpmid fields of pmHighResResult (for Python packing and
-dnl    unpacking)
+dnl    and the numpmid fields of pmResult (for Python packing and unpacking)
 cat <<End-of-File >conftest.c
 #include <stdint.h>
 #include <stddef.h>
@@ -529,22 +543,22 @@ typedef struct {
 typedef struct {
     struct timeval stamp;
     int numpmid;
-} pmResult;
+} pmResult_v2;
 typedef struct {
     struct timespec stamp;
     int numpmid;
-} pmHighResResult;
+} pmResult;
 void
 main(void)
 {
     __pmResult __rp;
-    pmResult rp;
-    pmHighResResult hrp;
+    pmResult_v2 rp;
+    pmResult hrp;
     int nb;
 
-    nb = (int)offsetof(pmResult,numpmid);
-    if (nb < (int)offsetof(pmHighResResult,numpmid))
-	nb = (int)offsetof(pmHighResResult,numpmid);
+    nb = (int)offsetof(pmResult_v2,numpmid);
+    if (nb < (int)offsetof(pmResult,numpmid))
+	nb = (int)offsetof(pmResult,numpmid);
     if (nb > (int)offsetof(__pmResult,numpmid))
 	printf("__pmResult pad %d\n", nb - (int)offsetof(__pmResult,numpmid));
 
@@ -650,10 +664,19 @@ AC_LANG_POP([C++])
 
 dnl Prevent shared libraries from being built for libpcp and other core libraries
 AC_ARG_ENABLE([shared],
-  [AS_HELP_STRING([--disable-shared], [disable core shared libary generation])],
+  [AS_HELP_STRING([--disable-shared], [disable core shared library generation])],
   [PACKAGE_CONFIGURE="$PACKAGE_CONFIGURE --disable-shared=$withval"],
   [enable_shared=false])
 AC_SUBST(enable_shared)
+
+dnl Support installing both devel package variants on either 32/64 bit platform
+AC_ARG_ENABLE([multilib],
+  [AS_HELP_STRING([--enable-multilib], [enable multilib installations])],
+  [PACKAGE_CONFIGURE="$PACKAGE_CONFIGURE --enable-multilib=$withval"
+   AC_DEFINE(HAVE_MULTILIB, [1], [multilib defined])
+   enable_multilib=true],
+  [enable_multilib=false])
+AC_SUBST(enable_multilib)
 
 dnl check if user wants to use any of their own commands;
 dnl ordering is important: some tests use earlier results
@@ -788,68 +811,19 @@ AC_SUBST(echo_c)
 dnl subsequent configure checks rely on $EGREP being set
 AC_PROG_EGREP
 
-dnl Check for static probes (dtrace, systemtap)
-if test "$do_probes" = "check" -o "$do_probes" = "yes"
-then
-    enable_probes=true
-    AC_CHECK_PROGS(DTRACE, dtrace, [])
-    if test -z "$DTRACE"
-    then
-	if test "$do_probes" = "yes"
-	then
-	    AC_MSG_ERROR([cannot enable static probes - no dtrace executable])
-	fi
-	enable_probes=false
-    fi
-    AC_CHECK_HEADERS([sys/sdt.h], [
-	if $enable_probes = true
-	then
-	    if test $target_os = kfreebsd
-	    then
-		enable_probes=false
-	    elif test $target_os = freebsd
-	    then
-		dnl dtrace support in FreeBSD depends on configuration of kernel
-		rm -f conftest.d conftest.h
-		cat <<End-of-File >conftest.d
-provider eek {
-probe urk(int);
-};
-End-of-File
-		if dtrace -s conftest.d -h >/dev/null 2>&1
-		then
-		    if test ! -f conftest.h
-		    then
-			enable_probes=false
-			if test "$do_probes" = "yes"
-			then
-			    AC_MSG_ERROR([cannot enable static probes - no .h from dtrace -h])
-			fi
-		    fi
-		else
-		    enable_probes=false
-		    if test "$do_probes" = "yes"
-		    then
-			AC_MSG_ERROR([cannot enable static probes - dtrace failed])
-		    fi
-		fi
-	    fi
-	fi
-    ], [
-	enable_probes=false
-	if test "$do_probes" = "yes"
-	then
-	    AC_MSG_ERROR([cannot enable static probes - no SDT header])
-	fi
-    ])
-
-    if test "$enable_probes" = "true"
-    then
-        AC_DEFINE(HAVE_STATIC_PROBES, [1], [Static probes (dtrace, systemtap)])
-    fi
-    AC_SUBST(enable_probes)
-    AC_SUBST(DTRACE)
+AC_MSG_CHECKING([if USDT probes should be used])
+AC_LINK_IFELSE([AC_LANG_SOURCE([
+#include "vendor/github.com/libbpf/usdt/usdt.h"
+void main() { USDT(pcp, check, 1); }])], [
+if test $target_cpu = "armv8l"; then
+     AC_MSG_RESULT(no)
+     result=0
+else
+     AC_MSG_RESULT(yes)
+     result=1
 fi
+AC_DEFINE_UNQUOTED(HAVE_STATIC_PROBES, $result, [Static probes (USDT)])],
+[AC_MSG_RESULT(no)])
 
 dnl Check for gperftools
 AS_IF([test "x$use_gperftools" != "xno"], [
@@ -865,7 +839,7 @@ AC_SUBST(sanitizer)
 
 dnl Check for service discovery mechanisms (DNS-SD, Avahi)
 AS_IF([test "x$do_discovery" != "xno"], [
-    # on Mac OS X, dns_sd.h
+    # on macOS, dns_sd.h
 
     # on Linux, aloha Avahi
     enable_avahi=true
@@ -981,15 +955,42 @@ dnl generate PM_VERSION_CURRENT for header
 pm_version_current=`awk </dev/null "BEGIN { print (${PACKAGE_MAJOR}*256+${PACKAGE_MINOR})*256+${PACKAGE_REVISION} }"`
 AC_SUBST(pm_version_current)
 
+dnl first AC_CONFIG_HEADERS() is a dummy (never used) but autoheader(1)
+dnl in the Debian build plucks this one and rewrites it ... we do NOT
+dnl want that happening to our config.h
+AC_CONFIG_HEADERS(src/include/pcp/autoheader-dummmy.h)
+
 dnl output header files with cpp defs HAVE_*, etc
 AC_CONFIG_HEADERS(src/include/pcp/config.h src/include/pcp/configsz.h)
+AC_CONFIG_HEADERS(src/libpcp3/src/include/pcp/config.h src/libpcp3/src/include/pcp/configsz.h)
 AC_CONFIG_FILES([src/include/pcp/platform_defs.h src/include/pcp/platformsz.h])
+AC_CONFIG_FILES([src/libpcp3/src/include/pcp/platform_defs.h src/libpcp3/src/include/pcp/platformsz.h])
 AC_OUTPUT
 
 AC_CHECK_PROGS(GIT, git)
 AC_SUBST(GIT)
 
-AC_CHECK_PROGS(PYLINT, pylint, /bin/true)
+AC_CHECK_PROGS(PYLINT, pylint-3 pylint, true)
+dnl if pylint found we need at least a version 3.x.x one
+if test "$PYLINT" != true
+then
+    AC_MSG_CHECKING([$PYLINT version])
+    version=`$PYLINT --version 2>/dev/null | $AWK '$1 == "pylint" { print $2 }'`
+    if test -z "$version"
+    then
+	AC_MSG_RESULT([unknown])
+	PYLINT=true
+    else
+	case "$version"
+	in
+	    1.*|2.*)	AC_MSG_RESULT([$version too old])
+			PYLINT=true
+			;;
+	    *)		AC_MSG_RESULT([$version ok])
+	    		;;
+	esac
+    fi
+fi
 AC_SUBST(PYLINT)
 
 dnl check if python3 available for the build and runtime
@@ -1007,6 +1008,8 @@ then
     else
 	AC_MSG_RESULT([$PYTHON3])
     fi
+else
+    AC_MSG_RESULT([$PYTHON3])
 fi
 AC_SUBST(PYTHON3)
 
@@ -1017,15 +1020,36 @@ AC_DEFUN([PCP_CHECK_PYTHON_HEADER],
   [ PY_MAJOR="$1"
     PY_MINOR="$2"
     PY_VERSION="python$PY_MAJOR.$PY_MINOR"
-    PY_INCLUDE_DIRS="-I/usr/include/${PY_VERSION}m -I/usr/include/${PY_VERSION} -I/usr/local/include/${PY_VERSION}"
+    AC_MSG_CHECKING([for Python $PY_MAJOR.$PY_MINOR header directory])
+
+    dnl Try python3-config (or versioned python3.X-config) to get include path
+    if test -n "$PYTHON3"; then
+        dnl Try versioned python3.X-config first, then fallback to python3-config
+        for cfg in "$PYTHON3-config" "python3.$PY_MINOR-config" "python3-config"; do
+            if $cfg --includes >/dev/null 2>&1; then
+                PY_INCLUDE_DIRS=`$cfg --includes`
+                break
+            fi
+        done
+    fi
+
+    dnl Fallback to manual paths if python3-config fails or is unavailable
+    if test -z "$PY_INCLUDE_DIRS"; then
+        PY_INCLUDE_DIRS="-I/usr/include/${PY_VERSION}m -I/usr/include/${PY_VERSION} -I/usr/local/include/${PY_VERSION} -I/opt/homebrew/include/${PY_VERSION} -I/opt/homebrew/include/${PY_VERSION}m"
+    fi
+
     saved_CFLAGS="$CFLAGS"
     saved_CPPFLAGS="$CPPFLAGS"
     CFLAGS="$CFLAGS $PY_INCLUDE_DIRS"
     CPPFLAGS="$CPPFLAGS $PY_INCLUDE_DIRS"
 
-    AC_CHECK_HEADERS([Python.h], [], [
-	echo WARNING: Python version $PY_MAJOR.$PY_MINOR header file may be missing.
-	echo Proceeding with the Python $PY_MAJOR installation found, regardless.])
+    AC_CHECK_HEADERS([Python.h], [
+        AC_MSG_RESULT([found in $PY_INCLUDE_DIRS])
+    ], [
+        AC_MSG_RESULT([not found])
+        echo WARNING: Python version $PY_MAJOR.$PY_MINOR header file may be missing.
+        echo Proceeding with the Python $PY_MAJOR installation found, regardless.
+    ])
 
     CPPFLAGS="$saved_CPPFLAGS"
     CFLAGS="$saved_CFLAGS"
@@ -1131,8 +1155,6 @@ PCP_CHECK_PYTHON_MODULE(BPF, [from bcc import BPF])
 AC_SUBST(have_python_BPF)
 PCP_CHECK_PYTHON_MODULE(OrderedDict, [from collections import OrderedDict])
 AC_SUBST(have_python_OrderedDict)
-PCP_CHECK_PYTHON_MODULE(jsonpointer)
-AC_SUBST(have_python_jsonpointer)
 PCP_CHECK_PYTHON_MODULE(openpyxl)
 AC_SUBST(have_python_openpyxl)
 PCP_CHECK_PYTHON_MODULE(pyarrow)
@@ -1157,17 +1179,6 @@ fi
 AC_SUBST(have_python_influxdb)
 if $have_python_influxdb; then AC_MSG_RESULT(yes); else AC_MSG_RESULT(no); fi
 
-AC_MSG_CHECKING([if the json PMDA should be included])
-pmda_json=false
-AS_IF([test "x$do_pmdajson" = "xyes"], [pmda_json=true])
-AS_IF([test "x$do_pmdajson" = "xcheck"], [
-    dnl JSON PMDA needs both the six and jsonpointer Python modules
-    $have_python_jsonpointer && $have_python_six && \
-	$have_python_OrderedDict && pmda_json=true
-])
-AC_SUBST(PMDA_JSON, $pmda_json)
-if $pmda_json; then AC_MSG_RESULT(yes); else AC_MSG_RESULT(no); fi
-
 AC_MSG_CHECKING([if the bcc PMDA should be included])
 pmda_bcc=false
 AS_IF([test "x$do_pmdabcc" = "xyes"], [pmda_bcc=true])
@@ -1177,15 +1188,6 @@ AS_IF([test "x$do_pmdabcc" = "xcheck"], [
 ])
 AC_SUBST(PMDA_BCC, $pmda_bcc)
 if $pmda_bcc; then AC_MSG_RESULT(yes); else AC_MSG_RESULT(no); fi
-
-PKG_CHECK_MODULES([libbpf], [libbpf >= 0.8.0], [have_libbpf=true], [have_libbpf=false])
-AC_SUBST(HAVE_LIBBPF, [$have_libbpf])
-AS_IF([$have_libbpf], [
-    AC_MSG_CHECKING([libbpf version])
-    libbpf_version=`$PKG_CONFIG --modversion libbpf`
-    AC_SUBST(libbpf_version)
-    AC_MSG_RESULT($libbpf_version)
-])
 
 PKG_CHECK_MODULES([libelf], [libelf], [have_libelf=true], [have_libelf=false])
 AC_SUBST(HAVE_LIBELF, [$have_libelf])
@@ -1229,28 +1231,23 @@ AC_MSG_CHECKING([if the bpf PMDA should be included])
 pmda_bpf=false
 AS_IF([test "x$do_pmdabpf" = "xyes"], [pmda_bpf=true])
 AS_IF([test "x$do_pmdabpf" = "xcheck"], [
-    dnl pmdabpf requires libbpf, libelf, clang 10+ and a bpftool-generated arch-specific vmlinux.h
-    $have_libbpf && $have_libelf && \
-	test $clang_major_version -ge 10 -a -f "$pmdabpf_vmlinuxh" && pmda_bpf=true
+    dnl pmdabpf needs -lelf, clang 12+ and arch-specific vmlinux.h from bpftool
+    $have_libelf && \
+	test $clang_major_version -ge 12 -a -f "$pmdabpf_vmlinuxh" && \
+    pmda_bpf=true
 ])
 AC_SUBST(PMDA_BPF, $pmda_bpf)
 if $pmda_bpf; then AC_MSG_RESULT(yes); else AC_MSG_RESULT(no); fi
 
 if $pmda_bpf; then
-    libbpf_version_major=`echo $libbpf_version | cut -d. -f1`
-    libbpf_version_minor=`echo $libbpf_version | cut -d. -f2`
-    pmdabpf_modules="biolatency.so runqlat.so"
-
-    AC_MSG_CHECKING([if bpf PMDA modules using bpf_buffer__new should be included])
-    if test "$libbpf_version_major" -eq 0; then
-       AC_MSG_RESULT([no (libbpf version required: 1.0.0, installed: $libbpf_version)])
-    else
-       pmdabpf_modules="${pmdabpf_modules} mountsnoop.so oomkill.so"
-       AC_MSG_RESULT(yes)
-    fi
-    pmdabpf_modules="${pmdabpf_modules} bashreadline.so biolatency.so execsnoop.so exitsnoop.so fsslower.so opensnoop.so runqlat.so statsnoop.so tcpconnect.so tcpconnlat.so vfsstat.so biosnoop.so netatop.so"
-    AC_SUBST(pmdabpf_modules)
     AC_MSG_CHECKING([which bpf PMDA modules should be included])
+    if test $clang_major_version -ge 15; then
+	pmdabpf_modules="bashreadline.so"
+    else
+	pmdabpf_modules=""
+    fi
+    pmdabpf_modules="${pmdabpf_modules} biolatency.so execsnoop.so exitsnoop.so fsslower.so mountsnoop.so oomkill.so opensnoop.so runqlat.so statsnoop.so tcpconnect.so tcpconnlat.so vfsstat.so biosnoop.so netatop.so"
+    AC_SUBST(pmdabpf_modules)
     AC_MSG_RESULT($pmdabpf_modules)
 fi
 
@@ -1331,6 +1328,22 @@ AS_IF([test "x$do_perl" != "xno"], [
 ], [have_perl=false])
 AC_SUBST(pcp_perl_prog)
 AC_SUBST(have_perl)
+
+dnl check for additional Perl modules for optional components
+have_perl_rrds=false
+if $have_perl
+then
+    dnl RRDs module for ganglia2pcp
+    AC_MSG_CHECKING([if Perl RRDs module is installed])
+    $pcp_perl_prog -e "use RRDs" 2>/dev/null
+    if test $? -eq 0; then
+	have_perl_rrds=true
+	AC_MSG_RESULT([yes])
+    else
+	AC_MSG_RESULT([no])
+    fi
+fi
+AC_SUBST(have_perl_rrds)
 
 AC_MSG_CHECKING([if the SNMP PMDA should be included])
 pmda_snmp=false
@@ -1522,6 +1535,15 @@ fi
 AC_SUBST(PMDA_OPENMETRICS, $pmda_openmetrics)
 if $pmda_openmetrics; then AC_MSG_RESULT(yes); else AC_MSG_RESULT(no); fi
 
+AC_MSG_CHECKING([if the OpenTelemetry PMDA should be included])
+pmda_opentelemetry=false
+if test "$have_python" = true
+then
+    $have_python_requests && $have_python_OrderedDict && pmda_opentelemetry=true
+fi
+AC_SUBST(PMDA_OPENTELEMETRY, $pmda_opentelemetry)
+if $pmda_opentelemetry; then AC_MSG_RESULT(yes); else AC_MSG_RESULT(no); fi
+
 AC_MSG_CHECKING([if the SQL Server PMDA should be included])
 pmda_mssql=false
 if test "$have_python" = true
@@ -1572,7 +1594,7 @@ AS_IF([test "x$do_qt" != "xno"], [
     then
 	dnl NB: no longer use qtchooser, its deprecated and doesn't work for
 	dnl the second of two options we wish to support - Qt5 and Qt6.
-	export QTPATHS="/usr/lib64/qt6/bin:/usr/lib/qt6/bin:/usr/lib64/qt5/bin:/usr/lib/qt5/bin"
+	export QTPATHS="/usr/lib64/qt6/bin:/usr/lib/qt6/bin:/usr/lib64/qt5/bin:/usr/lib/qt5/bin:/usr/bin/amd64"
 	if test -n "$QTDIR"
 	then
 	    AC_PATH_PROGS(QMAKE, [qmake qmake-qt6.sh qmake6 qmake-qt5.sh qmake-qt5],,
@@ -1581,7 +1603,7 @@ AS_IF([test "x$do_qt" != "xno"], [
 	    AC_PATH_PROGS(QMAKE, [qmake qmake-qt6.sh qmake6 qmake-qt5.sh qmake-qt5],,
 			  [/usr/bin:$QTPATHS:/usr/local/bin])
 	fi
-	test "x$cc_is_gcc" = xyes -a $target_os = solaris && QMAKE="$QMAKE -spec solaris-g++"
+	test "x$cc_is_gcc" = xyes -a $target_os = solaris -a -n "$QMAKE" && QMAKE="$QMAKE -spec solaris-g++"
     fi
     qmake=$QMAKE
     if test -z "$QMAKE"
@@ -1911,7 +1933,7 @@ AC_CHECK_HEADERS(endian.h standards.h sys/byteorder.h)
 AC_CHECK_HEADERS(libgen.h sys/mman.h sys/un.h)
 AC_CHECK_HEADERS(values.h stdint.h ieeefp.h math.h)
 AC_CHECK_HEADERS(pwd.h grp.h regex.h sys/wait.h)
-AC_CHECK_HEADERS(termio.h termios.h sys/termios.h)
+AC_CHECK_HEADERS(termios.h sys/termios.h)
 AC_CHECK_HEADERS(sys/ioctl.h sys/select.h sys/socket.h)
 AC_CHECK_HEADERS(netdb.h poll.h)
 if test $target_os = darwin -o $target_os = openbsd
@@ -1942,7 +1964,7 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 ]], [[
 ]])],[AC_DEFINE(HAVE_SYS_ENDIAN_H, 1, sys/endian.h) AC_MSG_RESULT(yes)],[AC_MSG_RESULT(no)])
 
-dnl Check if we have <machine/endian.h> ... MacOSX way
+dnl Check if we have <machine/endian.h> ... macOS way
 AC_MSG_CHECKING([for machine/endian.h ])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
     #include <machine/endian.h>
@@ -2082,30 +2104,40 @@ AS_IF([test "x$do_infiniband" != "xno"], [
     ], [])
     savedLIBS=$LIBS
     IB_LIBS=""
+    AC_CHECK_HEADERS([infiniband/verbs.h], [have_ibverbs=true], [have_ibverbs=false])
     AC_CHECK_LIB(ibmad, madrpc_init)
     AC_CHECK_LIB(ibumad, umad_init)
+    AC_CHECK_LIB(ibverbs, ibv_get_device_list)
     if test $ac_cv_lib_ibmad_madrpc_init = yes -a $ac_cv_lib_ibumad_umad_init = yes
     then
+	IB_CFLAGS=""
 	IB_LIBS="-libmad -libumad"
 	LIBS="$IB_LIBS"
 	AC_MSG_CHECKING([for port_performance_query_via])
 	AC_TRY_LINK_FUNC(port_performance_query_via,
-                AC_DEFINE(HAVE_PORT_PERFORMANCE_QUERY_VIA, [1], [port_performance_query_via API])
+		AC_DEFINE(HAVE_PORT_PERFORMANCE_QUERY_VIA, [1], [port_performance_query_via API])
 		have_port_performance_query_via=true
 		AC_MSG_RESULT(yes),
-                have_port_performance_query_via=false
+		have_port_performance_query_via=false
 		AC_MSG_RESULT(no))
 	AC_MSG_CHECKING([for pma_query_via])
 	AC_TRY_LINK_FUNC(pma_query_via,
 		AC_DEFINE(HAVE_PMA_QUERY_VIA, [1], [pma_query_via API])
-                have_pma_query_via=true
+		have_pma_query_via=true
 		AC_MSG_RESULT(yes),
-                have_pma_query_via=false
+		have_pma_query_via=false
 		AC_MSG_RESULT(no))
 	LIBS=$savedLIBS
 	if test $have_pma_query_via -o $have_port_performance_query_via
 	then
-	    :
+	    AC_MSG_CHECKING([if verbs API should be used])
+	    if test $ac_cv_header_infiniband_verbs_h = yes -a $ac_cv_lib_ibverbs_ibv_get_device_list = yes
+	    then
+		IB_LIBS="$IB_LIBS -libverbs"
+		AC_MSG_RESULT(yes)
+	    else
+		AC_MSG_RESULT(no)
+	    fi
 	else
 	    pmda_infiniband=false
 	fi
@@ -2114,6 +2146,7 @@ AS_IF([test "x$do_infiniband" != "xno"], [
     fi
     LIBS=$savedLIBS
     AC_SUBST(IB_LIBS)
+    AC_SUBST(IB_CFLAGS)
 ])
 AC_MSG_CHECKING([if the infiniband PMDA should be included])
 AC_SUBST(PMDA_INFINIBAND, $pmda_infiniband)
@@ -2218,7 +2251,7 @@ AC_CHECK_FUNCS(chown fchmod fchown getcwd scandir mkstemp)
 AC_CHECK_FUNCS(brk sbrk posix_memalign memalign valloc)
 AC_CHECK_FUNCS(signal sighold sigrelse tcgetattr)
 AC_CHECK_FUNCS(regex regcmp regexec regcomp)
-AC_CHECK_FUNCS(strtod strtol strtoll strtoull strndup strchrnul)
+AC_CHECK_FUNCS(strtod strtol strtoll strtoull strndup)
 AC_CHECK_FUNCS(getgrent getgrent_r getgrnam getgrnam_r getgrgid getgrgid_r)
 AC_CHECK_FUNCS(getpwent getpwent_r getpwnam getpwnam_r getpwuid getpwuid_r)
 AC_CHECK_FUNCS(sysinfo trace_back_stack)
@@ -3312,6 +3345,7 @@ dnl http://www.gnu.org/software/autoconf/manual/autoconf.html#Installation-Direc
 dnl
 pcp_etc_dir=`eval echo $sysconfdir`
 pcp_etc_dir=`eval echo $pcp_etc_dir`
+AC_MSG_NOTICE([pcp_etc_dir=$pcp_etc_dir])
 AC_SUBST(pcp_etc_dir)
 pcp_saslconf_dir=`eval echo $sysconfdir/sasl2`
 pcp_saslconf_dir=`eval echo $pcp_saslconf_dir`
@@ -3320,7 +3354,6 @@ pcp_sysconf_dir=`eval echo $sysconfdir/pcp`
 pcp_sysconf_dir=`eval echo $pcp_sysconf_dir`
 AC_SUBST(pcp_sysconf_dir)
 pcp_pmcdconf_path=$pcp_sysconf_dir/pmcd/pmcd.conf
-pcp_pmcdrclocal_path=$pcp_sysconf_dir/pmcd/rc.local
 pcp_pmcdoptions_path=$pcp_sysconf_dir/pmcd/pmcd.options
 pcp_pmproxyoptions_path=$pcp_sysconf_dir/pmproxy/pmproxy.options
 pcp_pmiecontrol_path=$pcp_sysconf_dir/pmie/control
@@ -3328,7 +3361,6 @@ pcp_pmsnapcontrol_path=$pcp_sysconf_dir/pmsnap/control
 pcp_pmloggercontrol_path=$pcp_sysconf_dir/pmlogger/control
 AC_SUBST(pcp_pmcdconf_path)
 AC_SUBST(pcp_pmcdoptions_path)
-AC_SUBST(pcp_pmcdrclocal_path)
 AC_SUBST(pcp_pmproxyoptions_path)
 AC_SUBST(pcp_pmiecontrol_path)
 AC_SUBST(pcp_pmsnapcontrol_path)
@@ -3337,6 +3369,7 @@ AC_SUBST(pcp_pmloggercontrol_path)
 dnl shared PCP files (shareable for diskless)
 pcp_share_dir=`eval echo $datarootdir/pcp`
 pcp_share_dir=`eval echo $pcp_share_dir`
+AC_MSG_NOTICE([pcp_share_dir=$pcp_share_dir])
 AC_SUBST(pcp_share_dir)
 
 dnl security-enhanced-linux policy files
@@ -3352,6 +3385,7 @@ AC_SUBST(pcp_bashshare_dir)
 dnl private PCP executables
 pcp_binadm_dir=`eval echo $libexecdir/pcp/bin`
 pcp_binadm_dir=`eval echo $pcp_binadm_dir`
+AC_MSG_NOTICE([pcp_binadm_dir=$pcp_binadm_dir])
 AC_SUBST(pcp_binadm_dir)
 
 dnl private PCP libraries
@@ -3558,7 +3592,7 @@ pcp_desktop_dir=`eval echo $datarootdir/applications`
 pcp_desktop_dir=`eval echo $pcp_desktop_dir`
 AC_SUBST(pcp_desktop_dir)
 
-dnl rc/startup files
+dnl Unix-like startup files
 AC_ARG_WITH(rcdir,[AS_HELP_STRING([--with-rcdir],[rc directory [SYSCONFDIR/rc.d]])],
                   [pcp_rc_dir=$withval], [
 if $enable_systemd
@@ -3575,6 +3609,22 @@ else
 fi])
 AC_SUBST(pcp_rc_dir)
 
+dnl real PCP service start|stop scripts dir
+AC_ARG_WITH(servicesdir,[AS_HELP_STRING([--with-servicesdir],[PCP services script directory [LIBEXECDIR/services]])],
+                  [pcp_services_dir=$withval],
+                  [pcp_services_dir=$libexecdir/pcp/services])
+dnl at least for the macOS build, pcp_services starts out as
+dnl ${exec_prefix}/libexec/pcp/services then one eval produces
+dnl ${prefix}/libexec/pcp/services and a second eval is needed
+dnl to get to /usr/local/libexec/pcp/services
+pcp_services_dir=`eval echo $pcp_services_dir`
+pcp_services_dir=`eval echo $pcp_services_dir`
+AC_SUBST(pcp_services_dir)
+pcp_pmcdrclocal_path=$pcp_services_dir/local
+AC_SUBST(pcp_pmcdrclocal_path)
+AC_MSG_NOTICE([libexecdir=$libexecdir])
+AC_MSG_NOTICE([pcp_services_dir=$pcp_services_dir])
+
 dnl rc sysconfig dir
 AC_ARG_WITH(sysconfigdir,[AS_HELP_STRING([--with-sysconfigdir],[sysconfig directory [SYSCONFDIR/sysconfig]])],
                   [pcp_sysconfig_dir=$withval],
@@ -3588,6 +3638,7 @@ AC_ARG_WITH(logdir,[AS_HELP_STRING([--with-logdir],[log directory [LOCALSTATEDIR
 pcp_log_dir=`eval echo $pcp_log_dir`
 pcp_log_dir=`eval echo $pcp_log_dir`
 AC_SUBST(pcp_log_dir)
+AC_MSG_NOTICE([pcp_log_dir=$pcp_log_dir])
 
 pcp_archive_dir=$pcp_log_dir/pmlogger
 AC_SUBST(pcp_archive_dir)
@@ -3614,6 +3665,7 @@ fi])
 pcp_run_dir=`eval echo $pcp_run_dir`
 pcp_run_dir=`eval echo $pcp_run_dir`
 AC_SUBST(pcp_run_dir)
+AC_MSG_NOTICE([pcp_run_dir=$pcp_run_dir])
 
 dnl world-writeable temporary files directory
 AC_ARG_WITH(tmpdir,[AS_HELP_STRING([--with-tmpdir],[tmp directory [LOCALSTATEDIR/tmp]])],
@@ -3881,6 +3933,7 @@ dnl   Build definitions for use in Makefiles
     src/include/builddefs
 dnl   PCP paths and other defs
     src/include/pcp.conf
+    src/libpcp3/src/include/pcp.conf
 dnl   Linux Software Map entry
     pcp.lsm
 dnl   Preamble for deb install scripts

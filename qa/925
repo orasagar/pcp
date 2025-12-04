@@ -44,6 +44,8 @@ _filter()
     sed \
 	-e '/^Roll .*\/NOTICES/d' \
 	-e '/^Start .*\/NOTICES/d' \
+	-e '/^Start \[/s/ 2[0-9:. -]*/ DATESTAMP/' \
+	-e '/^End \[/s/ 2[0-9:. -]*/ DATESTAMP /' \
 	-e "s,$tmp,TMP,g" \
 	-e "s,/privateTMP,TMP,g" \
 	-e "s,$PCP_TMP_DIR,PCP_TMP_DIR,g" \
@@ -103,7 +105,7 @@ End-of-File
 # need to be a place the user $PCP_USER can cd to from pmlogger_daily
 #
 cd /var/tmp
-$sudo -u $PCP_USER -g $PCP_GROUP sh -c "umask 022; $PCP_BINADM_DIR/pmlogger_daily -D -x never -c $tmp.control -V -l $tmp.log"
+$sudo -u $PCP_USER -g $PCP_GROUP sh -c "umask 022; $PCP_BINADM_DIR/pmlogger_daily -P -D -x never -c $tmp.control -V -l $tmp.log"
 cd $here
 _filter <$tmp.log
 

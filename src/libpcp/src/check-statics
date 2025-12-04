@@ -41,11 +41,11 @@ _nm()
     then
 	# use readelf(1) but turn lines like
 	#  38: 00000000000000a0     8 OBJECT  LOCAL  DEFAULT    4 xconfirm 
-	# 246: 0000000000000000     8 OBJECT  GLOBAL DEFAULT  137 pmProgname
+	# 246: 0000000000000000     8 OBJECT  GLOBAL DEFAULT  137 pmFoo
 	#
 	# into classical nm(1) format like
 	# 00000000000000a0 b xconfirm
-	# 0000000000000000 B pmProgname
+	# 0000000000000000 B pmFoo
 	#
 	# but skip lines like
 	# 73: 0000000000000000    16 OBJECT  LOCAL  DEFAULT   10 reltable.__pmDumpContext
@@ -244,6 +244,7 @@ connect.o
 context.o
     contexts_lock		# local mutex
     ?_mode			# const
+    ?_flagmap			# const
     ?being_initialized          # const
     def_backoff			# guarded by contexts_lock mutex
     backoff			# guarded by contexts_lock mutex
@@ -253,8 +254,8 @@ context.o
     contexts_map		# guarded by contexts_lock mutex
     last_handle			# guarded by contexts_lock mutex
     hostbuf			# single-threaded
-    ?curr_handle		# thread private (no __thread symbols for Mac OS X)
-    ?curr_ctxp			# thread private (no __thread symbols for Mac OS X)
+    ?curr_handle		# thread private (no __thread symbols for macOS)
+    ?curr_ctxp			# thread private (no __thread symbols for macOS)
     ?__emutls_t.curcontext	# thread private (*BSD, MinGW)
     ?__emutls_v.curcontext	# thread private (*BSD, MinGW)
     ?__emutls_t.curr_ctxp	# thread private (*BSD, MinGW)
@@ -263,6 +264,7 @@ context.o
 derive_fetch.o
     ?promote			# const
 derive_parser.tab.o
+    unregister_lock		# local mutex
     ?fmt			# const
     ?fmt_nopos			# const
     ?fmt_pmapi			# const
@@ -295,7 +297,7 @@ derive_parser.tab.o
 				# are trying to run pmRegisterDerived at the
 				# same time)
 
-    ?derive_errmsg		# thread private (no __thread symbols for Mac OS X)
+    ?derive_errmsg		# thread private (no __thread symbols for macOS)
     yytranslate            	# const
     ?yyrline			# const
     ?yytname			# const
@@ -327,8 +329,11 @@ derive_parser.tab.o
     ?type_c			# const (MinGW)
     ?.LpmRegisterDerivedMetric.fmt	# static string (FreeBSD gcc)
     ?pmRegisterDerivedMetric.fmt	# static string (FreeBSD 10.2 gcc)
+    unregister_count		# guarded by unregister_lock
 desc.o
 e_index.o
+    ?__pmLogPutIndex_v2.caller	# const
+    ?__pmLogPutIndex_v3.caller	# const
 e_indom.o
 e_labels.o
 e_loglabel.o
@@ -346,7 +351,7 @@ events.o
     pmid_flags			# no unsafe side-effects
     pmid_missed			# no unsafe side-effects
     ?caller                     # const
-    ?pmUnpackEventRecords.caller		# const
+    ?pmUnpackEventRecords.caller	# const
     ?pmUnpackHighResEventRecords.caller	# const
 exec.o
     exec_lock			# local mutex
@@ -379,8 +384,7 @@ getdate.tab.o
 getopt.o
     ?paths                	# const, may be optimized away
     ?fallback                	# const, may be optimized away
-getopt2.o
-getopt3.o
+getopt_v2.o
 hash.o
 help.o
 instance.o
@@ -510,11 +514,11 @@ pmns.o
     seenpmid			# guarded by pmns_lock mutex
     tokbuf			# guarded by pmns_lock mutex
     tokpmid			# guarded by pmns_lock mutex
-    ?useExtPMNS			# thread private (no __thread symbols for Mac OS X)
+    ?useExtPMNS			# thread private (no __thread symbols for macOS)
     ?__emutls_t.useExtPMNS	# thread private for OpenBSD
     repname			# guarded by pmns_lock mutex
     main_pmns			# guarded by pmns_lock mutex
-    ?curr_pmns			# thread private (no __thread symbols for Mac OS X)
+    ?curr_pmns			# thread private (no __thread symbols for macOS)
     ?__emutls_t.curr_pmns	# thread private for OpenBSD
     locerr			# no unsafe side-effects, see notes in pmns.c
     argp			# guarded by exec_lock
@@ -552,7 +556,7 @@ tz.o
     savetz			# guarded by __pmLock_libpcp mutex
     tzbuffer			# guarded by __pmLock_libpcp mutex
     ?wildabbr			# const (MinGW)
-    ?names			# const (clang, MacOSx)
+    ?names			# const (clang, macOS)
 units.o
     abuf			# pmAtomStr deprecated by pmAtomStr_r
     ubuf			# pmUnitsStr deprecated by pmUnitsStr_r
@@ -572,11 +576,10 @@ util.o
     debug_map			# const
     ?num_debug			# const
     pmState			# no unsafe side-effects, see notes in util.c
-    pmProgname			# no unsafe side-effects, see notes in util.c
-    pmDebug			# set-once from main(), read-only elsewhere
+    myprogname			# no unsafe side-effects, see notes in util.c
+    pmDebugOptions		# set-once from main(), read-only elsewhere
     				# also guarded by __pmLock_extcall when set
 				# from __pmInitLocks()
-    pmDebugOptions		# same story as pmDebug
     filelog			# guarded by util_lock mutex
     nfilelog			# guarded by util_lock mutex
     dosyslog			# no unsafe side-effects, see notes in util.c
@@ -596,9 +599,9 @@ util.o
     typename			# const
     xconfirm_init		# no unsafe side-effects, see notes in util.c
     xconfirm			# no unsafe side-effects, see notes in util.c
-    ?get			# sbrk(0) hack for Mac OS X, safe
-    ?highwater			# sbrk(0) hack for Mac OS X, safe
-    ?pick			# sbrk(0) hack for Mac OS X, safe
+    ?get			# sbrk(0) hack for macOS, safe
+    ?highwater			# sbrk(0) hack for macOS, safe
+    ?pick			# sbrk(0) hack for macOS, safe
     text_start			# no unsage side-effects, see notes in util.c
 throttle.o
     throttle_lock		# local mutex
@@ -742,7 +745,6 @@ do
 		    -e '/ C ___pmNativeConfig/d' \
 		    -e '/ C ___pmPDUCntIn/d' \
 		    -e '/ C ___pmPDUCntOut/d' \
-		    -e '/ C _pmProgname/d' \
 		    -e '/ \([BDR]\) \..*\./s// \1 /' \
 		    -e '/\.bss$/d' \
 		    -e '/\.data$/d' \

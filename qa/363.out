@@ -62,8 +62,8 @@ Note: timezone set to local timezone of host "gonzo" from archive
 
 Log Label (Log Format Version 2)
 Performance metrics from host gonzo
-  commencing Tue Aug  5 07:45:41.422 1997
-  ending     Tue Aug  5 07:45:59.912 1997
+  commencing Tue Aug  5 07:45:41.422332000 1997
+  ending     Tue Aug  5 07:45:59.912855000 1997
 irix.network.interface.total.packets ["ec0"] 3.000 3.000 1.000 5.000 3 count / sec
 irix.network.interface.total.packets ["lo0"] 21.766 23.327 7.995 48.003 7 count / sec
 irix.network.interface.total.packets ["ec2"] 39.657 39.659 30.997 47.972 3 count / sec
@@ -129,7 +129,7 @@ sampledso.bucket ["bin-900"] 900.000 none
 pmcd.seqnum  SEQNUM none
 pmcd.pid  PID none
 pmcd.pmlogger.port [PID] PORT none
-pmlogsummary: Cannot open archive "tmparch/null": Empty archive file
+pmlogsummary: Cannot open archive "tmparch/empty": Empty archive file
 pmlogsummary: Cannot locate end of archive tmparch/bad-1: Corrupted record in a PCP archive
 
 WARNING: This archive is sufficiently damaged that it may not be possible to

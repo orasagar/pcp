@@ -543,7 +543,7 @@ hacluster_refresh_pacemaker_nodes(const char *node_name, struct nodes *nodes)
 		/* Collect our node names */
 		if (found_nodes && strstr(buffer, node_name)) {
 		        if(strstr(buffer, "feature_set")) {
-		                sscanf(buffer, "%*s %*s %*s online=\"%9[^\"]\" standby=\"%9[^\"]\" standby_onfail=\"%9[^\"]\" maintenance=\"%9[^\"]\" pending=\"%9[^\"]\" unclean=\"%9[^\"]\" health=\"%9[^\"]\" feature_set =\"%9[^\"]\" shutdown=\"%9[^\"]\" expected_up=\"%9[^\"]\" is_dc =\"%9[^\"]\" %*s type=\"%9[^\"]\"",
+		                sscanf(buffer, "%*s %*s %*s online=\"%9[^\"]\" standby=\"%9[^\"]\" standby_onfail=\"%9[^\"]\" maintenance=\"%9[^\"]\" pending=\"%9[^\"]\" unclean=\"%9[^\"]\" health=\"%9[^\"]\" feature_set =\"%9[^\"]\" shutdown=\"%9[^\"]\" expected_up=\"%9[^\"]\" is_dc =\"%9[^\"]\" %*s type=\"%6[^\"]\"",
 				        online,
 				        standby,
 				        standby_on_fail,
@@ -558,7 +558,7 @@ hacluster_refresh_pacemaker_nodes(const char *node_name, struct nodes *nodes)
 				        nodes->type
 			        );
 		        } else {
-			        sscanf(buffer, "%*s %*s %*s online=\"%9[^\"]\" standby=\"%9[^\"]\" standby_onfail=\"%9[^\"]\" maintenance=\"%9[^\"]\" pending=\"%9[^\"]\" unclean=\"%9[^\"]\" shutdown=\"%9[^\"]\" expected_up=\"%9[^\"]\" is_dc =\"%9[^\"]\" %*s type=\"%9[^\"]\"",
+			        sscanf(buffer, "%*s %*s %*s online=\"%9[^\"]\" standby=\"%9[^\"]\" standby_onfail=\"%9[^\"]\" maintenance=\"%9[^\"]\" pending=\"%9[^\"]\" unclean=\"%9[^\"]\" shutdown=\"%9[^\"]\" expected_up=\"%9[^\"]\" is_dc =\"%9[^\"]\" %*s type=\"%6[^\"]\"",
 				        online,
 				        standby,
 				        standby_on_fail,
@@ -794,7 +794,7 @@ hacluster_refresh_pacemaker_resources(const char *instance_name, struct resource
 void
 pacemaker_stats_setup(void)
 {
-	static char pacemaker_command_cibadmin[] = "cibadmin --query --local";
+	static char pacemaker_command_cibadmin[] = "cibadmin --query";
 	static char pacemaker_command_crm_mon[] = "crm_mon -X --inactive";
 	char *env_command;
 

@@ -113,6 +113,7 @@ _symlink()
 	do
 	    __tpath="../${__tpath}"	# constructing a relative path
 	done
+
 	cd "${__dir}"
 	$LN "${__tpath}${__rel}" "$__symlink"
 	status=$?

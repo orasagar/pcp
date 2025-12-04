@@ -31,6 +31,7 @@ in the source distribution for its full text.
 #include "DateTimeMeter.h"
 #include "DiskIOMeter.h"
 #include "FileDescriptorMeter.h"
+#include "GPUMeter.h"
 #include "HostnameMeter.h"
 #include "HugePageMeter.h"
 #include "LoadAverageMeter.h"
@@ -51,7 +52,6 @@ in the source distribution for its full text.
 #include "TasksMeter.h"
 #include "UptimeMeter.h"
 #include "XUtils.h"
-#include "linux/GPUMeter.h"
 #include "linux/IOPriority.h"
 #include "linux/IOPriorityPanel.h"
 #include "linux/LinuxMachine.h"
@@ -247,6 +247,8 @@ const MeterClass* const Platform_meterTypes[] = {
    &ZfsArcMeter_class,
    &ZfsCompressedArcMeter_class,
    &ZramMeter_class,
+   &DiskIORateMeter_class,
+   &DiskIOTimeMeter_class,
    &DiskIOMeter_class,
    &NetworkIOMeter_class,
    &SELinuxMeter_class,
@@ -367,6 +369,52 @@ double Platform_setCPUValues(Meter* this, unsigned int cpu) {
 #endif
 
    return percent;
+}
+
+void Platform_setGPUValues(Meter* this, double* totalUsage, unsigned long long* totalGPUTimeDiff) {
+   const Machine* host = this->host;
+   const LinuxMachine* lhost = (const LinuxMachine*) host;
+
+   // Must match the index as used in GPUMeter_attributes
+   const size_t residueIndex = 4;
+   assert(ARRAYSIZE(GPUMeter_engineData) == residueIndex);
+
+   static uint64_t prevMonotonicMs;
+   static double residuePercentage;
+   static unsigned long long int prevResidueTime;
+
+   // The results are cached so that we can update values of multiple meter
+   // instances. We also need a local cache of the monotonic timestamp, thus we
+   // don't use host->prevMonotonicMs.
+   if (host->monotonicMs > prevMonotonicMs) {
+      uint64_t monotonictimeDelta = host->monotonicMs - prevMonotonicMs;
+
+      unsigned long long int curResidueTime = lhost->curGpuTime;
+
+      const GPUEngineData* gpuEngineData;
+      size_t i;
+      for (gpuEngineData = lhost->gpuEngineData, i = 0; gpuEngineData && i < ARRAYSIZE(GPUMeter_engineData); gpuEngineData = gpuEngineData->next, i++) {
+         GPUMeter_engineData[i].key        = gpuEngineData->key;
+         GPUMeter_engineData[i].timeDiff   = saturatingSub(gpuEngineData->curTime, gpuEngineData->prevTime);
+         GPUMeter_engineData[i].percentage = 100.0 * GPUMeter_engineData[i].timeDiff / (1000 * 1000) / monotonictimeDelta;
+
+         curResidueTime = saturatingSub(curResidueTime, gpuEngineData->curTime);
+      }
+
+      residuePercentage = 100.0 * saturatingSub(curResidueTime, prevResidueTime) / (1000 * 1000) / monotonictimeDelta;
+
+      *totalGPUTimeDiff = saturatingSub(lhost->curGpuTime, lhost->prevGpuTime);
+      *totalUsage = 100.0 * (*totalGPUTimeDiff) / (1000 * 1000) / monotonictimeDelta;
+
+      prevResidueTime = curResidueTime;
+      prevMonotonicMs = host->monotonicMs;
+   }
+
+   this->curItems = residueIndex + 1;
+   for (size_t i = 0; i < ARRAYSIZE(GPUMeter_engineData); i++) {
+      this->values[i] = GPUMeter_engineData[i].percentage;
+   }
+   this->values[residueIndex] = residuePercentage;
 }
 
 void Platform_setMemoryValues(Meter* this) {
@@ -621,10 +669,10 @@ bool Platform_getDiskIO(DiskIOData* data) {
       char diskname[32];
       unsigned long long int read_tmp, write_tmp, timeSpend_tmp;
       if (sscanf(lineBuffer, "%*d %*d %31s %*u %*u %llu %*u %*u %*u %llu %*u %*u %llu", diskname, &read_tmp, &write_tmp, &timeSpend_tmp) == 4) {
-         if (String_startsWith(diskname, "dm-"))
-            continue;
-
-         if (String_startsWith(diskname, "zram"))
+         if (String_startsWith(diskname, "dm-") ||
+             String_startsWith(diskname, "loop") ||
+             String_startsWith(diskname, "md") ||
+             String_startsWith(diskname, "zram"))
             continue;
 
          /* only count root disks, e.g. do not count IO from sda and sda1 twice */

@@ -65,7 +65,11 @@ void Platform_getBattery(double* percent, ACPresence* isOnAC);
 
 void Platform_getHostname(char* buffer, size_t size);
 
-void Platform_getRelease(char** string);
+void Platform_getRelease(const char** string);
+
+static inline const char* Platform_getFailedState(void) {
+   return NULL;
+}
 
 #define PLATFORM_LONG_OPTIONS
 

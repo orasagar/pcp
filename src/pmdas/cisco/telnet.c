@@ -385,8 +385,7 @@ get_fr_bw(cisco_t *cp, char *interface)
 
 	    case BW:
 		sscanf(w, "%d", &bandwidth);
-		bandwidth *= 1000;		/* Kbit -> bytes/sec */
-		bandwidth /= 8;
+		bandwidth *= (1000/8);		/* Kbit -> bytes/sec */
 		state = IN_REPORT;
 		break;
 
@@ -436,12 +435,25 @@ grab_cisco(intf_t *ip)
 	    return -1;
 	}
 	else {
-	    cp->fin = fdopen (fd, "r");
+	    if ((cp->fin = fdopen (fd, "r")) == NULL) {
+		if (pmDebugOptions.appl0)
+		    fprintf(stderr, "grab_cisco(%s:%s): input fdopen(%d) failed: %s\n",
+			    cp->host, ip->interface, fd, strerror(oserror()));
+		close(fd);
+		return -1;
+	    }
 	    if ((fd2 = dup(fd)) < 0) {
 	    	perror("dup");
 		exit(1);
 	    }
-	    cp->fout = fdopen (fd2, "w");
+	    if ((cp->fout = fdopen (fd2, "w")) == NULL) {
+		if (pmDebugOptions.appl0)
+		    fprintf(stderr, "grab_cisco(%s:%s): output fdopen(%d) failed: %s\n",
+			    cp->host, ip->interface, fd2, strerror(oserror()));
+		close(fd);
+		close(fd2);
+		return -1;
+	    }
 	    if (pmDebugOptions.appl0) {
 		fprintf(stderr, "grab_cisco(%s:%s): connected fin=%d fout=%d",
 		    cp->host, ip->interface, fileno(cp->fin), fileno(cp->fout));
@@ -651,8 +663,7 @@ grab_cisco(intf_t *ip)
 
 	    case BW:
 		sscanf(w, "%d", &tmp.bandwidth);
-		tmp.bandwidth *= 1000;		/* Kbit -> bytes/sec */
-		tmp.bandwidth /= 8;
+		tmp.bandwidth *= (1000/8);	/* Kbit -> bytes/sec */
 		nval++;
 		state = IN_REPORT;
 		break;

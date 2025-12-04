@@ -41,9 +41,9 @@
 		of pmlogger_check and this test finds the lock file in
 		place and goes down a rabbit hole ... it is just too hard
 		to engineer our way around this
-749	CentOS Stream9	systemtap-devel is busted here, staprun is missing
-749	vm22	test stap -p4 $tmp.stap may hang forever, so we don't
-		even get to the _notrun here
+708	i386.*FreeBSD 14\.3	the pmi Python module completely messes
+		up the pmUnits struct and fills it with garbage
+710	i386.*FreeBSD 14\.3	same as 708
 878	.*	on some QA hosts this fails sometimes when we don't see
 		the first or second event record ... despite extensive
 		triage the problem is not understood
@@ -83,6 +83,8 @@
 1740	vm21		acct(2) just seems broken here
 1724	Fedora 38	bpftrace PMDA is broken here, check-flakey passes
 			(sometimes)
+1809	i386.*FreeBSD 14\.3	same as 708
+1870	i386.*FreeBSD 14\.3	same as 708
 1973	Ubuntu 16\.04	Python here is 3.5.2 and there a bunch of what look like
 			dict ordering and/or cacheing sequence differences
 			and some arithmetic rounding differences ... not
@@ -105,45 +107,3 @@
 #
 1526	.*		failure indicates the environment probe is active,
 			not a QA failure
-# tzset botch for Python time module on FreeBSD 14 ... which is really
-# a localtime() botch as per https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-#
-035	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-317	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-922	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1038	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1070	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1071	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1072	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1132	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1134	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1135	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1136	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1139	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1140	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1169	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1183	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1185	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1202	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1240	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1242	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1489	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1500	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1546	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1547	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1549	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1623	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1671	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-1793	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-# and these ones are just localtime() botched, no Python involved
-#
-079	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-165	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-176	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-289	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-313	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-486	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-495	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-556	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-585	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281
-634	FreeBSD 14.0	https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=276281

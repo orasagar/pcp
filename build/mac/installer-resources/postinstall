@@ -19,7 +19,7 @@ prog=`basename $0`
 status=1
 trap "exit \$status" 0 1 2 15
 
-echo "$prog: PCP for MacOSX Install"
+echo "$prog: PCP for macOS Install"
 
 echo "$prog: Writing install log to /var/log/pcp_inst.log"
 echo "$prog: Writing install log to /var/log/pcp_inst.log"  > /var/log/pcp_inst.log
@@ -30,8 +30,6 @@ then
     echo "$prog: Unable to open directory of new files ($2)" >> /var/log/pcp_inst.log
     exit
 fi
-
-cd $2
 
 if ./install-pcp -i -l /var/log/pcp_inst.log idb
 then
@@ -101,5 +99,10 @@ for dir in /var/lib/pcp/config/pmieconf/pcp
 do
     [ -d "$dir" ] && rm -rf "$dir"
 done
+
+# Ensure pmcd is loaded...
+launchctl bootstrap system /Library/LaunchDaemons/io.pcp.pmcd.plist
+# ...and then started by launchctl - it would get picked up by a reboot, but this leaves pmcd running after install
+launchctl kickstart -p -k system/io.pcp.pmcd
 
 status=0

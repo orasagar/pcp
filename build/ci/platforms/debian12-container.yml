@@ -4,7 +4,7 @@ artifactory:
   package_type: deb
   deploy_path: /debian/12/amd64/pcp
   params:
-    deb.distribution: bookwork
+    deb.distribution: bookworm
     deb.component: main
     deb.architecture: amd64
 
@@ -16,7 +16,7 @@ container:
     RUN echo 'pcpbuild ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/pcpbuild
 
     # allow services to be started during installation
-    # pmcd will create the file /var/lib/pcp/pmns/stdpmid, which is required by QA tests
+    # pmcd will create the file /var/lib/pcp/pmns/stdpmid, among others
     RUN printf '#!/bin/sh\nexit 0\n' > /usr/sbin/policy-rc.d
 
     CMD ["/bin/systemd"]

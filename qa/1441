@@ -36,6 +36,17 @@ then
     # NOTREACHED
 fi
 
+# if the primary logger is configured for logpush, we need to
+# quietly move on and not dink with things ...
+#
+if pminfo -f pmcd.pmlogger.archive 2>&1 \
+   | tee -a $seq_full \
+   | grep -q '"primary".*"http://'
+then
+    _notrun "primary pmlogger configured for logpush"
+    # NOTREACHED
+fi
+
 # need systemd's autorestart to get pmlogger restarted quickly
 # ... cron-based restart takes too long for a QA test
 #
@@ -103,12 +114,16 @@ _wait_for_new_pmlogger()
     else
 	echo "Failed!" >>$seq_full
 	date
-	if [ -f $PCP_LOG_DIR/pmlogger/$oldhostname/pmlogger.log
+	if which systemctl >/dev/null 2>&1
+	then
+	    systemctl -l --no-pager status pmlogger >>$seq_full
+	fi
+	if [ -f $PCP_LOG_DIR/pmlogger/$oldhostname/pmlogger.log ]
 	then
 	    echo "--- start $oldhostname pmlogger.log" >>$seq_full
 	    cat $PCP_LOG_DIR/pmlogger/$oldhostname/pmlogger.log >>$seq_full
 	    echo "--- end $oldhostname pmlogger.log" >>$seq_full
-	elif [ -f $PCP_LOG_DIR/pmlogger/$newhostname/pmlogger.log
+	elif [ -f $PCP_LOG_DIR/pmlogger/$newhostname/pmlogger.log ]
 	then
 	    echo "--- start $newhostname pmlogger.log" >>$seq_full
 	    cat $PCP_LOG_DIR/pmlogger/$newhostname/pmlogger.log >>$seq_full
@@ -132,19 +147,6 @@ _wait_for_new_pmlogger()
 	    cat $PCP_TMP_DIR/pmlogger/primary
 	else
 	    echo $PCP_TMP_DIR/pmlogger/primary is missing
-	fi
-	if [ -f $PCP_LOG_DIR/pmlogger/$oldhostname/pmlogger.log
-	then
-	    echo "--- start $oldhostname pmlogger.log" >>$seq_full
-	    cat $PCP_LOG_DIR/pmlogger/$oldhostname/pmlogger.log >>$seq_full
-	    echo "--- end $oldhostname pmlogger.log" >>$seq_full
-	elif [ -f $PCP_LOG_DIR/pmlogger/$newhostname/pmlogger.log
-	then
-	    echo "--- start $newhostname pmlogger.log" >>$seq_full
-	    cat $PCP_LOG_DIR/pmlogger/$newhostname/pmlogger.log >>$seq_full
-	    echo "--- end $newhostname pmlogger.log" >>$seq_full
-	else
-	    echo "--- no pmlogger.log" >>$seq_full
 	fi
 	$PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep -E '[P]PID|/[p]mlogger( |$)'
 	echo "--- start pmcd.log" >>$seq_full
@@ -230,7 +232,7 @@ _wait_for_new_pmie()
 	ls -l $PCP_RUN_DIR/pmie.pid
 	ls -l $PCP_TMP_DIR/pmie
 	$PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep -E '[P]PID|/[p]mie( |$)'
-	$sudo -u pcp kill -USR1 "$1"
+	$sudo -u $PCP_USER kill -USR1 "$1"
 	sleep 1
 	echo "=== $oldhostname log ===" >>$seq_full
 	cat $PCP_LOG_DIR/pmie/$oldhostname/pmie.log >>$seq_full

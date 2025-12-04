@@ -30,6 +30,11 @@ __pmTimestamp	last_stamp;
 __pmHashCtl	hist_hash;
 
 /*
+ * one-trip guard for first pmResult
+ */
+static int first_result = 1;
+
+/*
  * These structures allow us to keep track of the _last_ fetch
  * for each fetch in each AF group ... needed to track changes in
  * instance availability.
@@ -70,9 +75,12 @@ clearavail(fetchctl_t *fcp)
 	    for (hp = __pmHashSearch(pmid, &hist_hash); hp != (__pmHashNode *)0; hp = hp->next)
 		if (pmid == (pmID)hp->key)
 		    break;
-	    if (hp == (__pmHashNode *)0)
+	    if (hp == (__pmHashNode *)0) {
 		/* not in history, no flags to update */
+		if (pmDebugOptions.appl8)
+		    fprintf(stderr, "%s: PMID %s no history\n", __FUNCTION__, pmIDStr(pmid));
 		continue;
+	    }
 	    php = (pmidhist_t *)hp->data;
 
 	    /* now we have the metric's entry in the history */
@@ -83,7 +91,9 @@ clearavail(fetchctl_t *fcp)
 		 * the history entry for the instance if it exists and
 		 * reset the "was available at last fetch" flag
 		 */
-		if (idp->i_numinst)
+		if (idp->i_numinst) {
+		    if (pmDebugOptions.appl8)
+			fprintf(stderr, "%s: PMID %s clear %d profile instances\n", __FUNCTION__, pmIDStr(pmid), idp->i_numinst);
 		    for (i = 0; i < idp->i_numinst; i++) {
 			inst = idp->i_instlist[i];
 			ihp = &php->ph_instlist[0];
@@ -93,19 +103,25 @@ clearavail(fetchctl_t *fcp)
 				break;
 			    }
 		    }
-		else
+		}
+		else {
 		    /*
 		     * if the profile specifies "all instances" clear EVERY
 		     * instance's "available" flag
 		     * NOTE: even instances that don't exist any more
 		     */
+		    if (pmDebugOptions.appl8)
+			fprintf(stderr, "%s: PMID %s clear all %d instances\n", __FUNCTION__, pmIDStr(pmid), php->ph_numinst);
 		    for (i = 0; i < php->ph_numinst; i++)
 			PMLC_SET_AVAIL(php->ph_instlist[i].ih_flags, 0);
+		}
 	    }
 	    /* indom is PM_INDOM_NULL */
 	    else {
 		/* if the single-valued metric is in the history it will have 1
 		 * instance */
+		if (pmDebugOptions.appl8)
+		    fprintf(stderr, "%s: PMID %s clear singular metric\n", __FUNCTION__, pmIDStr(pmid));
 		ihp = &php->ph_instlist[0];
 		PMLC_SET_AVAIL(ihp->ih_flags, 0);
 	    }
@@ -146,9 +162,16 @@ setavail(__pmResult *resp)
 		if (pmid == (pmID)hp->key)
 		    break;
 	    if (hp == (__pmHashNode *)0 ||
-		((optreq_t *)hp->data)->r_desc == (pmDesc *)0)
+		((optreq_t *)hp->data)->r_desc == (pmDesc *)0) {
 		/* not set up properly yet, not much we can do ... */
+		if (pmDebugOptions.appl8) {
+		    if (hp == (__pmHashNode *)0)
+			fprintf(stderr, "%s: PMID %s not in pm_hash\n", __FUNCTION__, pmIDStr(pmid));
+		    else
+			fprintf(stderr, "%s: PMID %s in pm_hash but pmDesc missing\n", __FUNCTION__, pmIDStr(pmid));
+		}
 		continue;
+	    }
 	    php = (pmidhist_t *)calloc(1, sizeof(pmidhist_t));
 	    if (php == (pmidhist_t *)0) {
 		pmNoMem("setavail: new pmid hist entry calloc",
@@ -174,8 +197,10 @@ setavail(__pmResult *resp)
 	    if ((j = __pmHashAdd(pmid, (void *)php, &hist_hash)) < 0) {
 		die("setavail: __pmHashAdd(hist_hash)", j);
 	    }
+	    if (pmDebugOptions.appl8)
+		fprintf(stderr, "%s: PMID %s new history, set avail for %d instances\n", __FUNCTION__, pmIDStr(pmid), vsp->numval);
 	    
-	    return;
+	    continue;
 	}
 
 	/* update an existing pmid history entry, adding any previously unseen
@@ -208,6 +233,8 @@ setavail(__pmResult *resp)
 		php->ph_numinst++;
 	    }
 	    PMLC_SET_AVAIL(ihp->ih_flags, 1);
+	    if (pmDebugOptions.appl8)
+		fprintf(stderr, "%s: PMID %s set avail for instance %d\n", __FUNCTION__, pmIDStr(pmid), inst);
 	}
     }
 }
@@ -283,6 +310,10 @@ check_inst(pmValueSet *vsp, int hint, __pmResult *lrp)
     else {
 	for (i = 0; i < lrp->numpmid; i++) {
 	    if (lrp->vset[i]->pmid == vsp->pmid)
+		break;
+	    if (IS_DERIVED(vsp->pmid) &&
+		SET_DERIVED_LOGGED(vsp->pmid) == lrp->vset[i]->pmid)
+		/* PMID rewritten for logged derived metric */
 		break;
 	}
 	if (i == lrp->numpmid) {
@@ -625,6 +656,7 @@ do_work(task_t *tp)
     AFctl_t		*acp;
     lastfetch_t		*lfp;
     lastfetch_t		*free_lfp;
+    char		*caller = pmGetProgname();
     int			changed;
     int			needindom;
     int			needti;
@@ -732,6 +764,27 @@ do_work(task_t *tp)
 	    }
 	    continue;
 	}
+
+	if (first_result) {
+	    int		lsts;
+	    /*
+	     * delayed prologue until we have first fetch
+	     */
+	    if (pmDebugOptions.dev0) {
+		fprintf(stderr, "Note: epoch reset from ");
+		__pmPrintTimestamp(stderr, &epoch);
+		fprintf(stderr, " to ");
+		__pmPrintTimestamp(stderr, &resp->timestamp);
+		fputc('\n', stderr);
+	    }
+	    epoch = resp->timestamp;	/* struct assignment */
+	    first_result = 0;
+
+	    if ((lsts = do_prologue()) < 0)
+		fprintf(stderr, "Warning: problem writing archive prologue: %s\n",
+		    pmErrStr(lsts));
+	}
+
 	pdu_payload = pduresultbytes(resp);
 
 	if (pmDebugOptions.appl2)
@@ -754,11 +807,11 @@ do_work(task_t *tp)
 	 * 2^63-1 bytes (for v3 archives).
 	 */
 	max_offset = (archive_version == PM_LOG_VERS02) ? 0x7fffffff : LONGLONG_MAX;
-	peek_offset = __pmFtell(archctl.ac_mfp);
+	peek_offset = archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller);
 	peek_offset += pdu_payload - sizeof(__pmPDUHdr) + 2*sizeof(int);
 	if (peek_offset > max_offset) {
 	    if (pmDebugOptions.appl2)
-		pmNotifyErr(LOG_INFO, "callback: new volume based on max size, currently %ld", __pmFtell(archctl.ac_mfp));
+		pmNotifyErr(LOG_INFO, "callback: new volume based on max size, currently %" FMT_INT64, archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller));
 	    (void)newvolume(VOL_SW_MAX);
 	}
 
@@ -783,7 +836,7 @@ do_work(task_t *tp)
 	 * __pmEncodeResult to encode the right PDU buffer before doing
 	 * the correct style of result write.
 	 */
-	last_log_offset = __pmFtell(archctl.ac_mfp);
+	last_log_offset = archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller);
 	assert(last_log_offset >= 0);
 
 	setavail(resp);
@@ -796,7 +849,7 @@ do_work(task_t *tp)
 	}
 
 	needti = 0;
-	old_meta_offset = __pmFtell(logctl.mdfp);
+	old_meta_offset = archctl.ac_tell_cb(&archctl, PM_LOG_VOL_META, caller);
 	assert(old_meta_offset >= 0);
 
 	for (i = 0; i < resp->numpmid; i++) {
@@ -1057,12 +1110,13 @@ do_work(task_t *tp)
 	    }
 	}
 	__pmUnpinPDUBuf(pb);
-	__pmOverrideLastFd(__pmFileno(archctl.ac_mfp));
+	if (!remote.conn)
+	    __pmOverrideLastFd(__pmFileno(archctl.ac_mfp));
 
-	if (__pmFtell(archctl.ac_mfp) > flushsize) {
+	if (archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller) > flushsize) {
 	    needti = 1;
 	    if (pmDebugOptions.appl2)
-		pmNotifyErr(LOG_INFO, "callback: file size (%d) reached flushsize (%ld)", (int)__pmFtell(archctl.ac_mfp), (long)flushsize);
+		pmNotifyErr(LOG_INFO, "callback: file size (%" FMT_INT64 ") reached flushsize (%ld)", archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller), (long)flushsize);
 	}
 
 	if (needti) {
@@ -1071,19 +1125,19 @@ do_work(task_t *tp)
 	     * result (but if this is the first one, skip the label
 	     * record, what a crock), ... ditto for the meta data
 	     */
-	    new_offset = __pmFtell(archctl.ac_mfp);
+	    new_offset = archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller);
 	    assert(new_offset >= 0);
-	    new_meta_offset = __pmFtell(logctl.mdfp);
+	    new_meta_offset = archctl.ac_tell_cb(&archctl, PM_LOG_VOL_META, caller);
 	    assert(new_meta_offset >= 0);
-	    __pmFseek(archctl.ac_mfp, last_log_offset, SEEK_SET);
-	    __pmFseek(logctl.mdfp, old_meta_offset, SEEK_SET);
+	    archctl.ac_reset_cb(&archctl, PM_LOG_VOL_CURRENT, last_log_offset, caller);
+	    archctl.ac_reset_cb(&archctl, PM_LOG_VOL_META, old_meta_offset, caller);
 	    __pmLogPutIndex(&archctl, &resp->timestamp);
 	    /*
 	     * ... and put them back
 	     */
-	    __pmFseek(archctl.ac_mfp, new_offset, SEEK_SET);
-	    __pmFseek(logctl.mdfp, new_meta_offset, SEEK_SET);
-	    flushsize = __pmFtell(archctl.ac_mfp) + 100000;
+	    archctl.ac_reset_cb(&archctl, PM_LOG_VOL_CURRENT, new_offset, caller);
+	    archctl.ac_reset_cb(&archctl, PM_LOG_VOL_META, new_meta_offset, caller);
+	    flushsize = archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller) + 100000;
 	}
 
 	last_stamp = resp->timestamp;	/* struct assignment */
@@ -1153,7 +1207,7 @@ do_work(task_t *tp)
 	run_done(0, "Sample limit reached");
 
     if (exit_bytes != -1 && 
-        (vol_bytes + __pmFtell(archctl.ac_mfp) >= exit_bytes)) 
+        (vol_bytes + archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller) >= exit_bytes))
         /* reached exit_bytes limit, so stop logging */
         run_done(0, "Byte limit reached");
 
@@ -1165,10 +1219,10 @@ do_work(task_t *tp)
     }
 
     if (vol_switch_bytes > 0 &&
-        (__pmFtell(archctl.ac_mfp) >= vol_switch_bytes)) {
+        (archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller) >= vol_switch_bytes)) {
         (void)newvolume(VOL_SW_BYTES);
 	if (pmDebugOptions.appl2)
-	    pmNotifyErr(LOG_INFO, "callback: new volume based on size (%d)", (int)__pmFtell(archctl.ac_mfp));
+	    pmNotifyErr(LOG_INFO, "callback: new volume based on size (%" FMT_INT64 ")", archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, caller));
     }
 }
 

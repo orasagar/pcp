@@ -1,3 +1,4 @@
+autoheader-dummmy.h
 platform_defs.h
 platformsz.h
 configsz.h
@@ -5,4 +6,5 @@ config.h
 dict.h
 sds.h
 sdsalloc.h
+usdt.h
 ini.h

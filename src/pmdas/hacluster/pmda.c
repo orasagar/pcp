@@ -1282,7 +1282,7 @@ hacluster_fetch_refresh(pmdaExt *pmda, int *need_refresh)
 }
 
 static int
-hacluster_fetch(int numpmid, pmID pmidlist[], pmResult **resp, pmdaExt *pmda)
+hacluster_fetch(int numpmid, pmID pmidlist[], pmdaResult **resp, pmdaExt *pmda)
 {
 	int i, sts, need_refresh[NUM_CLUSTERS] = { 0 };
 
@@ -1627,7 +1627,7 @@ hacluster_labelCallBack(pmInDom indom, unsigned int inst, pmLabelSet **lp)
 void
 hacluster_inst_setup(void)
 {
-	static char pacemaker_command_cibadmin[] = "cibadmin --query --local";
+	static char pacemaker_command_cibadmin[] = "cibadmin --query";
 	static char pacemaker_command_crm_mon[] = "crm_mon -X --inactive";
 	static char corosync_command_quorumtool[] = "corosync-quorumtool -p";
 	static char corosync_command_cfgtool[] = "corosync-cfgtool -s";

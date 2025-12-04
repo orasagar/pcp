@@ -132,7 +132,7 @@ build_dsotab(void)
 	     */
 	    domain = 3;
 	    init = "proc_init";
-	    pmsprintf(pathbuf, sizeof(pathbuf), "%s/proc/pmda_proc.so", pmdas);
+	    pmsprintf(pathbuf, sizeof(pathbuf), "%s/proc/pmda_proc.%s", pmdas, DSO_SUFFIX);
 	    name = pathbuf;
 	    peekc = *p;
 	    goto dsoload;
@@ -476,7 +476,7 @@ connected:
 		dp->domain = -1;
 	    }
 	    else if (dp->dispatch.comm.pmapi_version != PMAPI_VERSION_2 &&
-		     dp->dispatch.comm.pmapi_version != PMAPI_VERSION_3) {
+		     dp->dispatch.comm.pmapi_version != PMAPI_VERSION_4) {
 		pmprintf("__pmConnectLocal: Error: Unknown PMAPI version %d "
 			 "in \"%s\" DSO\n",
 			 dp->dispatch.comm.pmapi_version, dp->name);

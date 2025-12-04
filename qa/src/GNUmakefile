@@ -1,4 +1,3 @@
-#!gmake
 #
 # Copyright (c) 2012,2014,2016,2018 Red Hat.
 # Copyright (c) 2009 Aconex.  All Rights Reserved.
@@ -20,6 +19,11 @@ LLDFLAGS = \
 NVIDIACFLAGS = -I$(TOPDIR)/src/pmdas/nvidia
 NVIDIAQALIB = libnvidia-ml.$(DSOSUFFIX)
 
+ifeq "$(PMDA_INFINIBAND)" "true"
+IBUMADQALIB = libibumad.$(DSOSUFFIX)
+IBVERBSQALIB = libibverbs.$(DSOSUFFIX)
+endif
+
 LDIRT += localconfig.h libpcp.h
 
 include GNUlocaldefs
@@ -32,6 +36,10 @@ install install_pcp:
 	$(INSTALL) -m 644 -f $(CFILES) $(MYFILES) $(TESTDIR)
 	$(INSTALL) -m 755 -f $(PSCRIPTS) $(MYSCRIPTS) $(TESTDIR)
 	$(INSTALL) -m 755 -f $(NVIDIAQALIB) $(TESTDIR)/$(NVIDIAQALIB)
+ifeq "$(PMDA_INFINIBAND)" "true"
+	$(INSTALL) -m 755 -f $(IBUMADQALIB) $(TESTDIR)/$(IBUMADQALIB)
+	$(INSTALL) -m 755 -f $(IBVERBSQALIB) $(TESTDIR)/$(IBVERBSQALIB)
+endif
 	$(INSTALL) -m 644 -f GNUlocaldefs $(TESTDIR)/GNUlocaldefs
 	$(INSTALL) -m 644 -f GNUmakefile.install $(TESTDIR)/GNUmakefile
 

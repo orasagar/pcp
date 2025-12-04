@@ -445,7 +445,7 @@ __pmAccess(const char *path, int amode)
 }
 
 /*
- * Open a PCP file with given mode and return a __pmFILE. An i/o
+ * Open a PCP file with given mode and return a __pmFILE. An I/O
  * handler is automatically chosen based on filename suffix, e.g. .xz, .gz,
  * etc. The stdio pass-thru handler will be chosen for other files.
  * The stdio handler is the only handler currently supporting write operations.
@@ -500,6 +500,8 @@ __pmFopen(const char *path, const char *mode)
 	     * Try decompressing it externally.
 	     */
 	    f = fopen_compress(path, compress_ix);
+	    if (f != NULL)
+		f->flags |= PM_FILE_PRE_DECOMPRESS;
 	    goto done;
 	}
 
@@ -520,6 +522,8 @@ __pmFopen(const char *path, const char *mode)
 
     memset(f, 0, sizeof(__pmFILE));
     f->fops = handler;
+    if (compress_ix >= 0)
+	f->flags |= PM_FILE_DYNAMIC_DECOMPRESS;
 
     /*
      * Call the open method for chosen handler. Depending on the handler,

@@ -1,5 +1,5 @@
 Name:    pcp
-Version: 7.0.0
+Version: 7.1.0
 Release: 1%{?dist}
 Summary: System-level performance monitoring and performance management
 License: GPL-2.0-or-later AND LGPL-2.1-or-later AND CC-BY-3.0
@@ -115,17 +115,6 @@ ExcludeArch: %{ix86}
 %global disable_bpftrace 1
 %endif
 
-# support for pmdajson
-%if 0%{?rhel} == 0 || 0%{?rhel} > 6
-%if !%{disable_python3}
-%global disable_json 0
-%else
-%global disable_json 1
-%endif
-%else
-%global disable_json 1
-%endif
-
 # support for pmdamongodb
 %if !%{disable_python3}
 %global disable_mongodb 0
@@ -177,17 +166,6 @@ ExcludeArch: %{ix86}
 %global disable_systemd 0
 %else
 %global disable_systemd 1
-%endif
-
-# static probes, missing before el6 and on some architectures
-%if 0%{?rhel} == 0 || 0%{?rhel} > 5
-%global disable_sdt 0
-%else
-%ifnarch ppc ppc64
-%global disable_sdt 0
-%else
-%global disable_sdt 1
-%endif
 %endif
 
 # libuv async event library
@@ -279,9 +257,6 @@ BuildRequires: chan-devel HdrHistogram_c-devel
 %if !%{disable_perfevent}
 BuildRequires: libpfm-devel >= 4
 %endif
-%if !%{disable_sdt}
-BuildRequires: systemtap-sdt-devel
-%endif
 %if !%{disable_libuv}
 BuildRequires: libuv-devel >= 1.0
 %endif
@@ -312,7 +287,7 @@ BuildRequires: qt5-qtsvg-devel
 %endif
 
 # Utilities used indirectly e.g. by scripts we install
-Requires: bash xz gawk sed grep coreutils diffutils findutils
+Requires: bash xz zstd gawk sed grep coreutils diffutils findutils
 Requires: which %{_hostname_executable} %{_ps_executable}
 Requires: pcp-libs = %{version}-%{release}
 
@@ -335,6 +310,9 @@ Requires: pcp-selinux = %{version}-%{release}
 %global _testsdir       %{_localstatedir}/lib/pcp/testsuite
 %global _ieconfdir      %{_localstatedir}/lib/pcp/config/pmieconf
 %global _selinuxdir     %{_datadir}/selinux/packages/targeted
+
+%global _with_multilib --enable-multilib=true
+%global _with_nondebug --with-non-debug=yes
 
 %if 0%{?fedora} >= 20 || 0%{?rhel} >= 8
 %global _with_doc --with-docdir=%{_docdir}/%{name}
@@ -405,12 +383,6 @@ Requires: pcp-selinux = %{version}-%{release}
 %global _with_bpftrace --with-pmdabpftrace=no
 %else
 %global _with_bpftrace --with-pmdabpftrace=yes
-%endif
-
-%if %{disable_json}
-%global _with_json --with-pmdajson=no
-%else
-%global _with_json --with-pmdajson=yes
 %endif
 
 %if %{disable_mongodb}
@@ -676,6 +648,7 @@ Summary: Performance Co-Pilot tools for importing ganglia data into PCP archive 
 URL: https://pcp.io
 Requires: pcp-libs = %{version}-%{release}
 Requires: perl-PCP-LogImport = %{version}-%{release}
+BuildRequires: rrdtool-perl
 
 %description import-ganglia2pcp
 Performance Co-Pilot (PCP) front-end tools for importing ganglia data
@@ -708,6 +681,22 @@ Performance Co-Pilot (PCP) module for exporting metrics from PCP to
 Zabbix via the Zabbix agent - see zbxpcp(3) for further details.
 
 %if !%{disable_python3}
+#
+# pcp-import-benchmarks
+#
+%package import-benchmarks
+License: LGPL-2.1-or-later
+Summary: Performance Co-Pilot tools importing benchmark results into PCP archive logs
+URL: https://pcp.io
+Requires: pcp-libs = %{version}-%{release}
+Requires: python3-pcp = %{version}-%{release}
+Obsoletes: pcp-import-guidellm2pcp <= 7.0.2
+Provides: pcp-import-guidellm2pcp = %{version}-%{release}
+
+%description import-benchmarks
+Performance Co-Pilot (PCP) front-end tools for importing JSON benchmark
+results files into PCP archives for replay with PCP analysis tools.
+
 #
 # pcp-import-pmseries
 #
@@ -809,6 +798,21 @@ Requires: python3-pcp = %{version}-%{release}
 %description export-pcp2openmetrics
 Performance Co-Pilot (PCP) front-end tools for exporting metric values
 in OpenMetrics (https://openmetrics.io/) format.
+
+#
+# pcp-export-pcp2opentelemetry
+#
+%package export-pcp2opentelemetry
+License: GPL-2.0-or-later
+Summary: Performance Co-Pilot tools for exporting PCP metrics in OpenTelemetry format
+URL: https://pcp.io
+Requires: pcp-libs >= %{version}-%{release}
+%if !%{disable_python3}
+Requires: python3-pcp = %{version}-%{release}
+
+%description export-pcp2opentelemetry
+Performance Co-Pilot (PCP) front-end tools for exporting metric values
+in OpenTelemetry (https://opentelemetry.io/) format.
 
 #
 # pcp-export-pcp2spark
@@ -1490,6 +1494,23 @@ extracting performance metrics from bpftrace scripts.
 
 %if !%{disable_python3}
 #
+# pcp-pmda-hdb
+#
+%package pmda-hdb
+License: GPL-3.0-or-later
+Summary: Performance Co-Pilot (PCP) metrics for SAP HANA databases
+URL: https://pcp.io
+Requires: pcp = %{version}-%{release} pcp-libs = %{version}-%{release}
+Requires: python3-pcp
+%if 0%{?rhel} > 8 || 0%{?fedora} > 0
+Requires: python3-packaging
+%endif
+%description pmda-hdb
+This package provides a PMDA to export metric values about a SAP HANA
+database (https://www.sap.com/products/data-cloud/hana.html).
+#end pcp-pmda-hdb
+
+#
 # pcp-pmda-gluster
 #
 %package pmda-gluster
@@ -1698,6 +1719,23 @@ extracting metrics from OpenMetrics (https://openmetrics.io/) endpoints.
 #end pcp-pmda-openmetrics
 
 #
+# pcp-pmda-opentelemetry
+#
+%package pmda-opentelemetry
+License: GPL-2.0-or-later
+Summary: Performance Co-Pilot (PCP) metrics from OpenTelemetry endpoints
+URL: https://pcp.io
+Requires: pcp = %{version}-%{release} pcp-libs = %{version}-%{release}
+Requires: python3-pcp
+Requires: python3-requests
+BuildRequires: python3-requests
+Obsoletes: pcp-pmda-json <= 7.0.0
+%description pmda-opentelemetry
+This package contains the PCP Performance Metrics Domain Agent (PMDA) for
+extracting metrics from OpenTelemetry (https://opentelemetry.io/) endpoints.
+#end pcp-pmda-opentelemetry
+
+#
 # pcp-pmda-lmsensors
 #
 %package pmda-lmsensors
@@ -1781,24 +1819,6 @@ BuildRequires: python3-pyodbc
 This package contains the PCP Performance Metrics Domain Agent (PMDA) for
 collecting metrics from Microsoft SQL Server.
 # end pcp-pmda-mssql
-%endif
-
-%if !%{disable_json}
-#
-# pcp-pmda-json
-#
-%package pmda-json
-License: GPL-2.0-or-later
-Summary: Performance Co-Pilot (PCP) metrics for JSON data
-URL: https://pcp.io
-Requires: pcp = %{version}-%{release} pcp-libs = %{version}-%{release}
-Requires: python3-pcp
-Requires: python3-jsonpointer python3-six
-BuildRequires: python3-jsonpointer python3-six
-%description pmda-json
-This package contains the PCP Performance Metrics Domain Agent (PMDA) for
-collecting metrics output in JSON.
-# end pcp-pmda-json
 %endif
 
 #
@@ -2115,9 +2135,16 @@ Requires: pcp = %{version}-%{release} pcp-libs = %{version}-%{release}
 Requires: pcp-system-tools = %{version}-%{release}
 Requires: pcp-doc = %{version}-%{release}
 Requires: pcp-pmda-dm = %{version}-%{release}
+%if !%{disable_bpf}
+Requires: pcp-pmda-bpf = %{version}-%{release}
+%endif
+%if !%{disable_bpftrace}
+Requires: pcp-pmda-bpftrace = %{version}-%{release}
+%endif
 %if !%{disable_python3}
 Requires: pcp-pmda-nfsclient = %{version}-%{release}
 Requires: pcp-pmda-openmetrics = %{version}-%{release}
+Requires: pcp-pmda-opentelemetry = %{version}-%{release}
 %endif
 %description zeroconf
 This package contains configuration tweaks and files to increase metrics
@@ -2242,7 +2269,7 @@ updated policy package.
 _build=`echo %{release} | sed -e 's/\..*$//'`
 sed -i "/PACKAGE_BUILD/s/=[0-9]*/=$_build/" VERSION.pcp
 
-%configure %{?_with_initd} %{?_with_doc} %{?_with_dstat} %{?_with_ib} %{?_with_gfs2} %{?_with_statsd} %{?_with_perfevent} %{?_with_bcc} %{?_with_bpf} %{?_with_bpftrace} %{?_with_json} %{?_with_mongodb} %{?_with_mysql} %{?_with_snmp} %{?_with_nutcracker}
+%configure %{?_with_multilib} %{?_with_nondebug} %{?_with_initd} %{?_with_doc} %{?_with_dstat} %{?_with_ib} %{?_with_gfs2} %{?_with_statsd} %{?_with_perfevent} %{?_with_bcc} %{?_with_bpf} %{?_with_bpftrace} %{?_with_mongodb} %{?_with_mysql} %{?_with_snmp} %{?_with_nutcracker}
 make %{?_smp_mflags} default_pcp
 
 %install
@@ -2286,8 +2313,11 @@ desktop-file-validate $RPM_BUILD_ROOT/%{_datadir}/applications/pmchart.desktop
 %endif
 
 %if 0%{?rhel} || 0%{?fedora}
-# Fedora and RHEL default local only access for pmcd and pmlogger
-sed -i -e '/^# .*_LOCAL=1/s/^# //' $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/{pmcd,pmlogger}
+# Fedora and RHEL default local only access for pmcd, pmproxy and pmlogger
+if [ "$1" -eq 1 ]
+then
+    sed -i -e '/^# .*_LOCAL=1/s/^# //' $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/{pmcd,pmproxy,pmlogger}
+fi
 %endif
 
 # default chkconfig off (all RPM platforms)
@@ -2303,9 +2333,30 @@ PCP_GUI='pmchart|pmconfirm|pmdumptext|pmmessage|pmquery|pmsnap|pmtime'
 PCP_CONF=$BACKDIR/src/include/pcp.conf
 export PCP_CONF
 . $BACKDIR/src/include/pcp.env
-CFGFILELIST=`ls -1 $BACKDIR/debian/pcp-conf.{install,dirs}`
-LIBFILELIST=`ls -1 $BACKDIR/debian/lib*.{install,dirs} | grep -F -v -- -dev.`
-DEVFILELIST=`ls -1 $BACKDIR/debian/lib*-dev.{install,dirs}`
+CFGFILELIST=''
+for f in `echo $BACKDIR/debian/pcp-conf.{install,dirs}`
+do
+    [ -f "$f" ] && CFGFILELIST="$CFGFILELIST $f"
+done
+LIBFILELIST=''
+for f in `echo $BACKDIR/debian/lib*.{install,dirs}`
+do
+    case "$f"
+    in
+	*-dev.*)
+		# skip libpcp<foo>-dev.{install,dirs} ones, they'll
+		# be collected in $DEVFILELIST
+		;;
+	*)
+		[ -f "$f" ] && LIBFILELIST="$LIBFILELIST $f"
+		;;
+    esac
+done
+DEVFILELIST=''
+for f in `echo $BACKDIR/debian/lib*-dev.{install,dirs}`
+do
+    [ -f "$f" ] && DEVFILELIST="$DEVFILELIST $f"
+done
 
 # Package split: pcp{-conf,-libs,-libs-devel,-testsuite,-import-*,-export-*}...
 # The above list is ordered by file selection; files for each package are
@@ -2393,6 +2444,8 @@ basic_manifest | keep 'sheet2pcp' >pcp-import-sheet2pcp-files
 basic_manifest | keep 'mrtg2pcp' >pcp-import-mrtg2pcp-files
 basic_manifest | keep 'ganglia2pcp' >pcp-import-ganglia2pcp-files
 basic_manifest | keep 'collectl2pcp' >pcp-import-collectl2pcp-files
+basic_manifest | keep 'guidellm2pcp' >pcp-import-benchmarks-files
+basic_manifest | keep 'vllmbench2pcp' >pcp-import-benchmarks-files
 basic_manifest | keep 'pcp2arrow' >pcp-export-pcp2arrow-files
 basic_manifest | keep 'pcp2elasticsearch' >pcp-export-pcp2elasticsearch-files
 basic_manifest | keep 'pcp2influxdb' >pcp-export-pcp2influxdb-files
@@ -2400,6 +2453,7 @@ basic_manifest | keep 'pcp2xlsx' >pcp-export-pcp2xlsx-files
 basic_manifest | keep 'pcp2graphite' >pcp-export-pcp2graphite-files
 basic_manifest | keep 'pcp2json' >pcp-export-pcp2json-files
 basic_manifest | keep 'pcp2openmetrics' >pcp-export-pcp2openmetrics-files
+basic_manifest | keep 'pcp2opentelemetry' >pcp-export-pcp2opentelemetry-files
 basic_manifest | keep 'pcp2spark' >pcp-export-pcp2spark-files
 basic_manifest | keep 'pcp2xml' >pcp-export-pcp2xml-files
 basic_manifest | keep 'pcp2zabbix' >pcp-export-pcp2zabbix-files
@@ -2429,8 +2483,8 @@ basic_manifest | keep '(etc/pcp|pmdas)/gpfs(/|$)' >pcp-pmda-gpfs-files
 basic_manifest | keep '(etc/pcp|pmdas)/gpsd(/|$)' >pcp-pmda-gpsd-files
 basic_manifest | keep '(etc/pcp|pmdas)/hacluster(/|$)' >pcp-pmda-hacluster-files
 basic_manifest | keep '(etc/pcp|pmdas)/haproxy(/|$)' >pcp-pmda-haproxy-files
+basic_manifest | keep '(etc/pcp|pmdas)/hdb(/|$)' >pcp-pmda-hdb-files
 basic_manifest | keep '(etc/pcp|pmdas)/infiniband(/|$)' >pcp-pmda-infiniband-files
-basic_manifest | keep '(etc/pcp|pmdas)/json(/|$)' >pcp-pmda-json-files
 basic_manifest | keep '(etc/pcp|pmdas)/libvirt(/|$)' >pcp-pmda-libvirt-files
 basic_manifest | keep '(etc/pcp|pmdas)/lio(/|$)' >pcp-pmda-lio-files
 basic_manifest | keep '(etc/pcp|pmdas)/lmsensors(/|$)' >pcp-pmda-lmsensors-files
@@ -2453,6 +2507,7 @@ basic_manifest | keep '(etc/pcp|pmdas)/nginx(/|$)' >pcp-pmda-nginx-files
 basic_manifest | keep '(etc/pcp|pmdas)/nutcracker(/|$)' >pcp-pmda-nutcracker-files
 basic_manifest | keep '(etc/pcp|pmdas)/nvidia(/|$)' >pcp-pmda-nvidia-files
 basic_manifest | keep '(etc/pcp|pmdas)/openmetrics(/|$)' >pcp-pmda-openmetrics-files
+basic_manifest | keep '(etc/pcp|pmdas)/opentelemetry(/|$)' >pcp-pmda-opentelemetry-files
 basic_manifest | keep '(etc/pcp|pmdas|pmieconf)/openvswitch(/|$)' >pcp-pmda-openvswitch-files
 basic_manifest | keep '(etc/pcp|pmdas)/oracle(/|$)' >pcp-pmda-oracle-files
 basic_manifest | keep '(etc/pcp|pmdas)/pdns(/|$)' >pcp-pmda-pdns-files
@@ -2493,14 +2548,13 @@ for pmda_package in \
     elasticsearch \
     farm \
     gfs2 gluster gpfs gpsd \
-    hacluster haproxy \
+    hacluster haproxy hdb \
     infiniband \
-    json \
     libvirt lio lmsensors logger lustre lustrecomm \
     mailq memcache mic mounts mongodb mssql mysql \
     named netcheck netfilter news nfsclient nginx \
     nutcracker nvidia \
-    openmetrics openvswitch oracle \
+    openmetrics opentelemetry openvswitch oracle \
     pdns perfevent podman postfix postgresql \
     rabbitmq redis resctrl rocestat roomtemp rpm rsyslog \
     samba sendmail shping slurm smart snmp \
@@ -2514,7 +2568,7 @@ do \
 done
 
 for import_package in \
-    pmseries \
+    pmseries benchmarks \
     collectl2pcp iostat2pcp ganglia2pcp mrtg2pcp sar2pcp sheet2pcp ; \
 do \
     import_packages="$import_packages pcp-import-$import_package"; \
@@ -2522,7 +2576,8 @@ done
 
 for export_package in \
     pcp2arrow pcp2elasticsearch pcp2graphite pcp2influxdb pcp2json \
-    pcp2openmetrics pcp2spark pcp2xlsx pcp2xml pcp2zabbix zabbix-agent ; \
+    pcp2openmetrics pcp2spark pcp2xlsx pcp2xml pcp2opentelemetry \
+    pcp2zabbix zabbix-agent ; \
 do \
     export_packages="$export_packages pcp-export-$export_package"; \
 done
@@ -2648,6 +2703,8 @@ chown -R pcpqa:pcpqa %{_testsdir} 2>/dev/null
 exit 0
 
 %post testsuite
+PCP_PMDAS_DIR=%{_pmdasdir}
+PCP_PMCDCONF_PATH=%{_confdir}/pmcd/pmcd.conf
 %if !%{disable_selinux}
 PCP_SELINUX_DIR=%{_selinuxdir}
 semodule -r pcpqa >/dev/null 2>&1 || true
@@ -2655,6 +2712,14 @@ semodule -r pcpqa >/dev/null 2>&1 || true
 %selinux_relabel_post -s targeted
 %endif
 chown -R pcpqa:pcpqa %{_testsdir} 2>/dev/null
+# auto-install important PMDAs for testing (if not present already)
+needinstall='sample simple'
+for PMDA in $needinstall ; do
+    if ! grep -q "$PMDA/pmda$PMDA" "$PCP_PMCDCONF_PATH"
+    then
+	%{install_file "$PCP_PMDAS_DIR/$PMDA" .NeedInstall}
+    fi
+done
 %if 0%{?rhel}
 %if !%{disable_systemd}
     systemctl restart pcp-reboot-init pmcd pmlogger >/dev/null 2>&1
@@ -2709,11 +2774,6 @@ exit 0
 %if !%{disable_statsd}
 %preun pmda-statsd
 %{pmda_remove "$1" "statsd"}
-%endif
-
-%if !%{disable_json}
-%preun pmda-json
-%{pmda_remove "$1" "json"}
 %endif
 
 %preun pmda-nginx
@@ -2786,6 +2846,9 @@ exit 0
 %preun pmda-openmetrics
 %{pmda_remove "$1" "openmetrics"}
 
+%preun pmda-opentelemetry
+%{pmda_remove "$1" "opentelemetry"}
+
 %preun pmda-lustre
 %{pmda_remove "$1" "lustre"}
 
@@ -2846,6 +2909,9 @@ exit 0
 %endif
 
 %if !%{disable_python3}
+%preun pmda-hdb
+%{pmda_remove "$1" "hdb"}
+
 %preun pmda-gluster
 %{pmda_remove "$1" "gluster"}
 
@@ -2984,14 +3050,23 @@ PCP_PMDAS_DIR=%{_pmdasdir}
 PCP_SYSCONFIG_DIR=%{_sysconfdir}/sysconfig
 PCP_PMCDCONF_PATH=%{_confdir}/pmcd/pmcd.conf
 # auto-install important PMDAs for RH Support (if not present already)
-for PMDA in dm nfsclient openmetrics ; do
+needinstall='dm'
+%if !%{disable_python3}
+needinstall="$needinstall nfsclient openmetrics opentelemetry"
+%endif
+for PMDA in $needinstall ; do
     if ! grep -q "$PMDA/pmda$PMDA" "$PCP_PMCDCONF_PATH"
     then
         %{install_file "$PCP_PMDAS_DIR/$PMDA" .NeedInstall}
     fi
 done
 # managed via /usr/lib/systemd/system-preset/90-default.preset nowadays:
-%if 0%{?rhel} > 0 && 0%{?rhel} < 10
+%if 0%{?fedora} > 40 || 0%{?rhel} > 9
+    for s in pmcd pmlogger pmie; do
+        systemctl --quiet is-enabled $s && systemctl --quiet restart $s || true
+    done
+%else
+# old-school methods follow
 %if !%{disable_systemd}
     systemctl restart pmcd pmlogger pmie >/dev/null 2>&1
     systemctl enable pmcd pmlogger pmie >/dev/null 2>&1
@@ -3237,6 +3312,8 @@ fi
 
 %files export-pcp2openmetrics -f pcp-export-pcp2openmetrics-files.rpm
 
+%files export-pcp2opentelemetry -f pcp-export-pcp2opentelemetry-files.rpm
+
 %files export-pcp2spark -f pcp-export-pcp2spark-files.rpm
 
 %files export-pcp2xml -f pcp-export-pcp2xml-files.rpm
@@ -3262,16 +3339,17 @@ fi
 
 %files export-zabbix-agent -f pcp-export-zabbix-agent-files.rpm
 
-%if !%{disable_json}
-%files pmda-json -f pcp-pmda-json-files.rpm
-%endif
-
 %if !%{disable_python3}
+%files pmda-hdb -f pcp-pmda-hdb-files.rpm
+
 %files pmda-libvirt -f pcp-pmda-libvirt-files.rpm
 
 %files pmda-lio -f pcp-pmda-lio-files.rpm
 
 %files pmda-openmetrics -f pcp-pmda-openmetrics-files.rpm
+%endif
+
+%files pmda-opentelemetry -f pcp-pmda-opentelemetry-files.rpm
 %endif
 
 %if !%{disable_amdgpu}
@@ -3328,6 +3406,8 @@ fi
 
 %if !%{disable_python3}
 %files import-pmseries -f pcp-import-pmseries-files.rpm
+
+%files import-benchmarks -f pcp-import-benchmarks-files.rpm
 %endif
 
 %if !%{disable_perl}
@@ -3364,5 +3444,5 @@ fi
 %files zeroconf -f pcp-zeroconf-files.rpm
 
 %changelog
-* Tue Jul 01 2025 Nathan Scott <nathans@redhat.com> - 7.0.0-1
+* Wed Feb 04 2026 Nathan Scott <nathans@redhat.com> - 7.1.0-1
 - Latest release.

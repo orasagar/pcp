@@ -1123,7 +1123,7 @@ class pmConfig(object):
     def update_metrics(self, curr_insts=CURR_INSTS, max_insts=0):
         """ Update metricset """
         self.clear_metrics()
-        self.util.pmfg_ts = self.util.pmfg.extend_timestamp()
+        self.util.pmfg_ts = self.util.pmfg.extend_timeval()
         self.validate_metrics(curr_insts, max_insts)
 
     def names_change_action(self):
@@ -1147,9 +1147,9 @@ class pmConfig(object):
 
         # Watch for end time in uninterpolated mode
         if not self.util.interpol:
-            sample = self.util.pmfg_ts().strftime('%s')
-            finish = self.util.opts.pmGetOptionFinish()
-            if float(sample) > float(finish):
+            sample_ts = self.util.pmfg_ts().timestamp()
+            finish_ts = float(self.util.opts.pmGetOptionFinish())
+            if sample_ts > finish_ts:
                 return -2
 
         # Handle any PMCD state change notification
@@ -1168,7 +1168,7 @@ class pmConfig(object):
         self._round += 1
 
         if not self._init_ts:
-            self._init_ts = float(self.util.pmfg_ts().strftime("%s.%f"))
+            self._init_ts = self.util.pmfg_ts().timestamp()
 
         wakeup = self._init_ts + float(self.util.interval) * self._round
 

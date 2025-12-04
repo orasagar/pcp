@@ -6,13 +6,14 @@
 # build and package).
 #
 # The things we're culling are
-# - false warnings, often from older toolchains
 # - warnings from code the is not part of PCP proper, e.g. the qwt library
 #   and the vendor code (hiredis, hiredis-cluster, jasonl, libbpf-tools,
 #   bpftool, htop, etc) ... we assume fixed these is "someone else's
 #   problem"
 # - things's we triaged and decided are OK, e.g. rand() or random() use
-#   in qa apps, safe uses of strcpy() or strcat() or sprintf()
+#   in qa apps, safe uses of strcpy() or strcat() or sprintf(), and false
+#   warnings, often from older toolchains, or things that are really
+#   FYI not real errors or warnings
 # - packaging warnings we can't do anything about
 #
 # This is a filter, so reads from stdin.
@@ -21,8 +22,7 @@
 tmp=/var/tmp/c-b-w-$$
 trap "rm -f $tmp.*; exit 0" 0 1 2 3 15
 
-# Gather all the lines of interest, add leading ' ' to make later
-# filtering easier
+# Gather all the lines of interest ...
 #
 sed >$tmp.out -n \
     -e 's/^ / /' \
@@ -33,10 +33,51 @@ sed >$tmp.out -n \
 # end
 mv $tmp.out $tmp.in
 
-# Cull false warnings
+# Cull warnings from non-PCP code
 #
 sed <$tmp.in >$tmp.out \
-    -e '/yyunput.* defined but not used/d' \
+    -e '/^qwt_/d' \
+    -e '/^\.\/qwt_/d' \
+    -e '/\/selinux\/.*\.if[ :].* duplicate definition of /d' \
+    -e '/^deps\/hiredis\//d' \
+    -e '/^<stdin>:1:10: fatal error: .*: No such file or directory/d' \
+    -e "/^<stdin>:4:2: error: too many arguments to function /d" \
+    -e '/^libbpf/d' \
+    -e '/^[^ ]*..\/libbpf\/src\//d' \
+    -e '/^btf_relocate.c[ :]/d' \
+    -e '/^ringbuf.c[ :]/d' \
+    -e '/^elf.c[ :]/d' \
+    -e '/^btf.c[ :]/d' \
+    -e '/^btf_dump.c[ :]/d' \
+    -e '/^gen_loader.c[ :]/d' \
+    -e '/^hashmap.h[ :]/d' \
+    -e '/^linker.c[ :]/d' \
+    -e '/^nlattr.c[ :]/d' \
+    -e '/^relo_core.c[ :]/d' \
+    -e '/^strset.c[ :]/d' \
+    -e '/^usdt.c[ :]/d' \
+    -e '/^bpf.c[ :].* comparison of integer expressions of different signedness/d' \
+    -e '/^bpf.c[ :].* comparison between signed and unsigned integer expressions/d' \
+    -e '/^query.c[ :].*missing.braces/d' \
+    -e '/^query.c[ :].*near initialization for/d' \
+    -e '/^query.c[ :].*zero-length-bounds/d' \
+    -e '/^netlink.c[ :].* comparison of integer expressions of different signedness/d' \
+    -e '/^netlink.c[ :].* comparison between signed and unsigned integer expressions/d' \
+    -e '/^common.c[ :].*_GNU_SOURCE.* redefined/d' \
+    -e '/^iter.c[ :].*_GNU_SOURCE.* redefined/d' \
+    -e '/^net.c[ :].*_GNU_SOURCE.* redefined/d' \
+    -e '/^perf.c[ :].*_GNU_SOURCE.* redefined/d' \
+    -e '/^prog.c[ :].*_GNU_SOURCE.* redefined/d' \
+    -e '/^xlated_dumper.c[ :].*_GNU_SOURCE.* redefined/d' \
+    -e "/^cc1: warning: unrecognized command line option '-Wno-unknown-warning-option'/d" \
+# end
+mv $tmp.out $tmp.in
+
+# Cull warnings that we've triaged and can ignore
+#
+sed <$tmp.in >$tmp.out \
+    -e "/[ ]yyunput[(].* defined but not used/d" \
+    -e "/[']yynerrs['] set but not used/d" \
     -e '/input.* defined but not used/d' \
     -e '/jobserver unavailable: using -j1/d'\
     -e '/pmprintf("%s: Warning: /d' \
@@ -48,81 +89,24 @@ sed <$tmp.in >$tmp.out \
     -e '/^> .*Warning: /d' \
     -e '/^> .*Error: /d' \
     -e '/^pmdasample: cannot open log "sample.log" for writing : Permission denied/d' \
-# end
-mv $tmp.out $tmp.in
-
-# Cull warnings from non-PCP code
-#
-sed <$tmp.in >$tmp.out \
-    -e '/^qwt_/d' \
-    -e '/^\.\/qwt_/d' \
-    -e '/^deps\/hiredis\/sds.h[ :].* declaration of .sh. shadows a previous local/d' \
-    -e '/^deps\/hiredis\/sds.c[ :].* declaration of .sh. shadows a previous local/d' \
-    -e '/^deps\/hiredis\/sds.c[ :].* declaration shadows a local variable/d' \
-    -e '/\/selinux\/.*\.if[ :].* duplicate definition of /d' \
-    -e '/^libbpf.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^libbpf.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^libbpf.c[ :].* operand of .?:. changes signedness from /d' \
-    -e '/^libbpf.c[ :].* signed and unsigned type in conditional expression/d' \
-    -e '/^libbpf_internal.h[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^libbpf_internal.h[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^\.\.\/libbpf\/src\/libbpf.c[ :].* may be used uninitialized/d' \
-    -e '/^\.\.\/libbpf\/src\/btf.c[ :].* may be used uninitialized/d' \
-    -e '/^bpf.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^bpf.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^btf.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^btf.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^btf.c[ :].* operand of .?:. changes signedness from /d' \
-    -e '/^btf.c[ :].* signed and unsigned type in conditional expression/d' \
-    -e '/^query.c[ :].*missing.braces/d' \
-    -e '/^query.c[ :].*near initialization for/d' \
-    -e '/^query.c[ :].*zero-length-bounds/d' \
-    -e '/^btf_dump.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^btf_dump.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^gen_loader.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^gen_loader.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^hashmap.h[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^hashmap.h[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^linker.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^linker.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^netlink.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^netlink.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^nlattr.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^nlattr.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^relo_core.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^relo_core.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^strset.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^strset.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^usdt.c[ :].* comparison of integer expressions of different signedness/d' \
-    -e '/^usdt.c[ :].* comparison between signed and unsigned integer expressions/d' \
-    -e '/^common.c[ :].*_GNU_SOURCE.* redefined/d' \
-    -e '/^iter.c[ :].*_GNU_SOURCE.* redefined/d' \
-    -e '/^net.c[ :].*_GNU_SOURCE.* redefined/d' \
-    -e '/^perf.c[ :].*_GNU_SOURCE.* redefined/d' \
-    -e '/^prog.c[ :].*_GNU_SOURCE.* redefined/d' \
-    -e '/^xlated_dumper.c[ :].*_GNU_SOURCE.* redefined/d' \
-# end
-mv $tmp.out $tmp.in
-
-# Cull warnings that we've triaged and can ignore
-#
-sed <$tmp.in >$tmp.out \
     -e '/^configure: WARNING: unrecognized options: --disable-dependency-tracking/d' \
     -e '/\/qmc_config.h[ :].* warning: .Qt::fixed. defined but not used/d' \
     -e '/^qmc_config.h[ :].* warning: .Qt::fixed. defined but not used/d' \
     -e '/\/qmc_config.h[ :].* warning: .Qt::endl. defined but not used/d' \
     -e '/^qmc_config.h[ :].* warning: .Qt::endl. defined but not used/d' \
     -e '/warning _FORTIFY_SOURCE requires compiling with optimization/d' \
-    -e '/^acme.c[ :].* rand() may return deterministic/d' \
-    -e '/^multithread13.c[ :].* random() may return deterministic/d' \
-    -e '/^profilecrash.c[ :].* random() may return deterministic/d' \
+    -e '/^acme.c[ :].* rand() may return/d' \
+    -e '/^ld: warning: acme.c[ :].* rand() may return/d' \
+    -e '/^multithread13.c[ :].* random() may return/d' \
+    -e '/^ld: warning: multithread13.c[ :].* random() may return/d' \
+    -e '/^profilecrash.c[ :].* random() may return/d' \
+    -e '/^ld: warning: profilecrash.c[ :].* random() may return/d' \
     -e '/^callback.c[ :].*pmValueSet.0.. is partly outside array bounds/d' \
     -e '/^weblog.c[ :].*pmValueSet.0.. is partly outside array bounds/d' \
     -e '/^pmcd.c[ :].*pmValueSet.0.. is partly outside array bounds/d' \
     -e '/^pass0.c[ :].* warning: .fp. may be used uninitialized/d' \
     -e '/^proc_pid.c[ :].* warning: ignoring return value of .strtoul/d' \
     -e '/^showgeneric.c[ :].* warning: ignoring return value of .strtol/d' \
-    -e '/^util.c:2084.* strcat() is almost always misused/d' \
 # end
 mv $tmp.out $tmp.in
 
@@ -133,6 +117,12 @@ sed <$tmp.in >$tmp.out \
     -e '/^dpkg-shlibdeps: warning: .*\/pmda_pmcd.so contains an unresolvable .* probably a plugin/d' \
     -e '/^dpkg-shlibdeps: warning: package could avoid a useless dependency/d' \
     -e '/^dpkg-source: warning: ignoring deletion of file src\/pmlogconf\/openmetrics\/GNUmakefile/d' \
+    -e '/^dpkg-source: warning: ignoring deletion of file configure, use --include-removal to override/d' \
+    -e '/^dpkg-shlibdeps: warning: diversions involved - output may be incorrect/d' \
+    -e '/^dpkg-gencontrol: warning: Depends field of package .* unknown substitution variable \${python3:Depends}/d' \
+    -e '/^dpkg-gencontrol: warning: Depends field of package .* substitution variable \${python3:Depends} used, but is not defined/d' \
+    -e '/^cp: warning: behaviou*r of -n is non-portable /d' \
+    -e '/^post-auto-install: Warning: HAVE_PERL is false, nothing to do/d' \
 # end
 mv $tmp.out $tmp.in
 
@@ -176,6 +166,15 @@ in
 	# end
 	;;
 
+    vm11)
+	# gcc gets this wrong
+	#
+	sed \
+	    -e '/drawbar.c[ :].*[‘]isp[’] may be used uninitialized/d' \
+	# end
+	;;
+	
+
     vm21)
 	# c++ is just plain wrong here
 	sed \
@@ -183,14 +182,44 @@ in
 	# end
 	;;
 
-    vm33|vm37)
-	# strcpy(), strcat() and sprinf() uses in our code are all OK
-	# (brave assertion, but most follow a pattern of malloc() enough
-	# space, then str-away)
+    vm30)
+	# RHEL 10 odd Qt here?
 	sed \
-	    -e '/ warning: strcpy() is almost always misused/d' \
-	    -e '/ warning: strcat() is almost always misused/d' \
-	    -e '/ warning: sprintf() is often misused/d' \
+	    -e '/^qed_colorpicker.cpp:.* QColor::setNamedColor(.* is deprecated:/d' \
+	# end
+	;;
+
+    vm33|vm37)
+	# strcpy(), strcat() and sprinf() uses in our code are usually OK,
+	# following a pattern of malloc() enough space, then str-away
+	#
+	# the ones below have been triaged and are safe
+	sed \
+	    -e '/(derive_parser.tab.o:(__dmchildren).* strcat() is almost always misused/d' \
+	    -e '/(getopt.o:(addArchive).* strcat() is almost always misused/d' \
+	    -e '/(util.o:(strcons).* strcat() is almost always misused/d' \
+	    -e '/(util.o:(append).* strcat() is almost always misused/d' \
+	    -e '/(clientid.o:(main).* strcat() is almost always misused/d' \
+	    -e '/(proc.o:(proc_handler).* strcat() is almost always misused/d' \
+	    -e '/(main.o:(catoption(.*)).* strcat() is almost always misused/d' \
+	    -e '/(pmlogger.o:(do_dialog).* strcat() is almost always misused/d' \
+	    -e '/pmda.c:84(pmda.o:(main).* strcat() is almost always misused/d' \
+	    -e '/(pmda.o:(main).* strcat() is almost always misused/d' \
+	    -e '/(view.o:(OpenViewDialog::openView(.*)).* strcat() is almost always misused/d' \
+	    -e '/(derive_parser.tab.o:(__dmchildren).* strcpy() is almost always misused/d' \
+	    -e '/(rules.o:(set_attribute).* strcpy() is almost always misused/d' \
+	    -e '/(lex.o:(yylex).* strcpy() is almost always misused/d' \
+	    -e '/(dopdus.o:(DoPMNSTraverse).* strcpy() is almost always misused/d' \
+	    -e '/(trivial.o:(trivial_children).* strcpy() is almost always misused/d' \
+	    -e '/mmv_ondisk.c[ :].*(set_string).* strcpy() is almost always misused/d' \
+	    -e '/(storepmcd.o:(store_container).* strcpy() is almost always misused/d' \
+	    -e '/(proc.o:(proc_handler).* strcpy() is almost always misused/d' \
+	    -e '/(logue.o:(do_logue).* strcpy() is almost always misused/d' \
+	    -e '/(systemlog.o:(do_syslog_args).* strcpy() is almost always misused/d' \
+	    -e '/(pmdumptext.o:(main).* strcpy() is almost always misused/d' \
+	    -e '/(mounts.o:(mounts_grab_config_info).* strcpy() is almost always misused/d' \
+	    -e '/(deps\/jsonsl\/jsonsl.o:(jsonsl_jpr_new).* strcpy() is almost always misused/d' \
+	    -e '/(view.o:(OpenViewDialog::openView(.*)).* strcpy() is almost always misused/d' \
 	# end
 	;;
 

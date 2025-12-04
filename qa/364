@@ -4,6 +4,7 @@
 #
 # Copyright (c) 2010 Ken McDonell.  All Rights Reserved.
 #
+# check-group-exclude: pcp-uptime
 
 seq=`basename $0`
 echo "QA output created by $seq"
@@ -336,6 +337,7 @@ _filter()
        -e '/^elasticsearch\.nodes\.indices\.cache.* Metric not supported/d' \
        -e '/^elasticsearch\.nodes\.indices\.docs\.num_docs .* not supported/d' \
        -e '/^oracle.* Information not currently available/d' \
+       -e '/^pmproxy.logpaths.archive -12357 Unknown metric name/d' \
        -e '/^swap\.in .* Metric not supported/d' \
        -e '/^swap\.out .* Metric not supported/d' \
     | _filter_linux \

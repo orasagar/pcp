@@ -28,6 +28,8 @@ _filter()
     | sed \
 	-e '/^Roll .*\/NOTICES/d' \
 	-e '/^Start .*\/NOTICES/d' \
+	-e '/^Start \[/s/ 2[0-9:. -]*/ DATESTAMP/' \
+	-e '/^End \[/s/ 2[0-9:. -]*/ DATESTAMP /' \
 	-e "s@$tmp@TMP@g" \
 	-e "s@$PCP_BINADM_DIR@PCP_BINADM_DIR@g" \
 	-e '/^.[rwx-][rwx-][rwx-]/s/.* 20/<ls output> 20/' \
@@ -137,7 +139,7 @@ echo "Before ..."
 ls $tmp/myhost | _filter | _fmt
 echo
 $sudo rm -f $tmp.log
-$sudo -u $PCP_USER $PCP_BINADM_DIR/pmlogger_daily -D -c $tmp.control -k 7 -x never -V -l $tmp.log >$tmp.err 2>&1
+$sudo -u $PCP_USER $PCP_BINADM_DIR/pmlogger_daily -P -D -c $tmp.control -k 7 -x never -V -l $tmp.log >$tmp.err 2>&1
 _filter <$tmp.err
 _filter <$tmp.log
 echo
@@ -158,7 +160,7 @@ echo "Before ..."
 ls $tmp/myhost | _filter | _fmt
 echo
 $sudo rm -f $tmp.log
-$sudo -u $PCP_USER $PCP_BINADM_DIR/pmlogger_daily -D -c $tmp.control -k 7 -x never -V -l $tmp.log >$tmp.err 2>&1
+$sudo -u $PCP_USER $PCP_BINADM_DIR/pmlogger_daily -P -D -c $tmp.control -k 7 -x never -V -l $tmp.log >$tmp.err 2>&1
 _filter <$tmp.err
 _filter <$tmp.log
 echo
@@ -174,7 +176,7 @@ echo "Before ..."
 ls $tmp/myhost | _filter | _fmt
 echo
 $sudo rm -f $tmp.log
-$sudo -u $PCP_USER $PCP_BINADM_DIR/pmlogger_daily -D -c $tmp.control -k 7 -x never -V -l $tmp.log >$tmp.err 2>&1
+$sudo -u $PCP_USER $PCP_BINADM_DIR/pmlogger_daily -P -D -c $tmp.control -k 7 -x never -V -l $tmp.log >$tmp.err 2>&1
 _filter <$tmp.err
 _filter <$tmp.log
 echo

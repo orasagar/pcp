@@ -49,6 +49,10 @@ PCPIMPORTCOLLECTL = pcp-import-collectl2pcp
 PCPIMPORTCOLLECTL_FILES = pcp-import-collectl2pcp.install
 PCPIMPORTCOLLECTL_DOC_DIR = $(PCP_DOC_DIR)/../pcp-import-collectl2pcp
 
+PCPIMPORTBENCHMARKS = pcp-import-benchmarks
+PCPIMPORTBENCHMARKS_FILES = pcp-import-benchmarks.install
+PCPIMPORTBENCHMARKS_DOC_DIR = $(PCP_DOC_DIR)/../pcp-import-benchmarks
+
 PCPPMDAINFINIBAND = pcp-pmda-infiniband
 PCPPMDAINFINIBAND_FILES = pcp-pmda-infiniband.dirs pcp-pmda-infiniband.install
 PCPPMDAINFINIBAND_DOC_DIR = $(PCP_DOC_DIR)/../pcp-pmda-infiniband
@@ -57,11 +61,11 @@ PCPCFG = pcp-conf
 PCPCFG_FILES = pcp-conf.dirs pcp-conf.install
 PCPCFG_DOC_DIR = $(PCP_DOC_DIR)/../pcp-conf
 
-LIBPCPPCP = libpcp3
-LIBPCP_FILES = libpcp3.dirs libpcp3.install
-DEVPCP_FILES = libpcp3-dev.dirs libpcp3-dev.install
-LIBPCP_DOC_DIR = $(PCP_DOC_DIR)/../libpcp3
-DEVPCP_DOC_DIR = $(PCP_DOC_DIR)/../libpcp3-dev
+LIBPCPPCP = libpcp4
+LIBPCP_FILES = libpcp4.dirs libpcp4.install
+DEVPCP_FILES = libpcp4-dev.dirs libpcp4-dev.install
+LIBPCP_DOC_DIR = $(PCP_DOC_DIR)/../libpcp4
+DEVPCP_DOC_DIR = $(PCP_DOC_DIR)/../libpcp4-dev
 
 LIBGUIPCP = libpcp-gui2
 LIBGUI_FILES = libpcp-gui2.install
@@ -111,7 +115,8 @@ LDIRT = *.debhelper *.substvars *.log pcp files pcp.postrm \
 	$(PCPIMPORTSAR) $(PCPIMPORTMRTG) $(PCPIMPORTSHEET) $(PCPIMPORTIOSTAT) \
 	$(PCPIMPORTCOLLECTL) $(PCPIMPORTGANGLIA)
 
-default: pcp.preinst pcp.postinst pcp.postrm rules pcp-gui.install
+default: pcp.preinst pcp.postinst pcp.postrm rules pcp-gui.install \
+	 pcp-testsuite.install pcp-import-ganglia2pcp.install
 
 include $(BUILDRULES)
 
@@ -300,6 +305,13 @@ ifeq ($(PACKAGE_DISTRIBUTION), debian)
 	$(INSTALL) -m 644 changelog $(PCPIMPORTCOLLECTL_DOC_DIR)/changelog.Debian
 endif
 
+install-pcpimportguidellm: default
+ifeq ($(PACKAGE_DISTRIBUTION), debian)
+	$(INSTALL) -m 755 -d $(PCPIMPORTBENCHMARKS_DOC_DIR)
+	$(INSTALL) -m 644 copyright $(PCPIMPORTBENCHMARKS_DOC_DIR)
+	$(INSTALL) -m 644 changelog $(PCPIMPORTBENCHMARKS_DOC_DIR)/changelog.Debian
+endif
+
 install-pcppmdainfiniband: default
 ifeq ($(PMDA_INFINIBAND), true)
 ifeq ($(PACKAGE_DISTRIBUTION), debian)
@@ -321,35 +333,53 @@ pcp.postrm:	pcp.postrm.head pcp.postrm.tail
 	rm -f $@
 	cat pcp.postrm.head pcp.postrm.tail > $@
 
+# *.install files that have optional parts
+#
+pcp-testsuite.install: pcp-testsuite.install.in
+	rm -f $@
+	cp pcp-testsuite.install.in $@
+ifeq ($(ENABLE_SYSTEMD),true)
+	echo "usr/lib/sysusers.d/pcp-testsuite.conf" >>$@
+endif
+	chmod u-w $@
+
+pcp-import-ganglia2pcp.install: pcp-import-ganglia2pcp.install.in
+	rm -f $@
+	cp pcp-import-ganglia2pcp.install.in $@
+ifeq ($(HAVE_PERL_RRDs),true)
+	echo "usr/bin/ganglia2pcp" >>$@
+endif
+
 pcp-gui.install:	pcp-gui.install.base pcp-gui.install.hicolor pcp-gui.install.pmview
-	rm -f pcp-gui.install
-	cat pcp-gui.install.base >pcp-gui.install
+	rm -f $@
+	cat pcp-gui.install.base >$@
 ifeq ($(HAVE_HICOLOR_ICONS), true)
-	cat pcp-gui.install.hicolor >>pcp-gui.install
+	cat pcp-gui.install.hicolor >>$@
 endif
 ifeq "$(ENABLE_QT3D)" "true"
-	cat pcp-gui.install.pmview >>pcp-gui.install
+	cat pcp-gui.install.pmview >>$@
 endif
+	chmod u-w $@
 
 # only make control from control.* pieces in Makepkgs build
 #
 control:
-	./fixcontrol >control
+	./fixcontrol control.pcp >control
 ifeq ($(ENABLE_PYTHON3), true)
-	cat control.python3 >>control
+	./fixcontrol control.python3 >>control
 endif
 ifeq ($(ENABLE_QT), true)
-	cat control.pcpgui >>control
+	./fixcontrol control.pcpgui >>control
 endif
 ifeq ($(HAVE_PYTHON_OPENPYXL), true)
-	cat control.pcp2xlsx >>control
+	./fixcontrol control.pcp2xlsx >>control
 endif
 ifeq ($(HAVE_PYTHON_PYARROW), true)
-	cat control.pcp2arrow >>control
+	./fixcontrol control.pcp2arrow >>control
 endif
 ifeq ($(PMDA_INFINIBAND), true)
-	cat control.pmdaib >>control
+	./fixcontrol control.pmdaib >>control
 endif
 ifeq ($(HAVE_PERL), true)
-	cat control.perl >>control
+	./fixcontrol control.perl >>control
 endif

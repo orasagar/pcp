@@ -77,7 +77,7 @@ _cleanup()
     lockfile=`cat $tmp/lock 2>/dev/null`
     [ -n "$lockfile" ] && rm -f "$lockfile"
     rm -rf $tmp
-    $VERY_VERBOSE && echo "End: `date '+%F %T.%N'`"
+    $VERBOSE && echo >&2 "End [janitor]: `_datestamp` status=$status"
 }
 
 trap "_cleanup; exit \$status" 0 1 2 3 15
@@ -230,11 +230,8 @@ else
     exec 3>&2 1>"$MYPROGLOG" 2>&1
 fi
 
-if $VERY_VERBOSE
-then
-    echo "Start: `date '+%F %T.%N'`"
-    _pstree_all $$
-fi
+$VERBOSE && echo >&2 "Start [janitor]: `_datestamp`"
+$VERY_VERBOSE && _pstree_all >&2 $$
 
 # if SaveLogs exists in the $PCP_LOG_DIR/pmlogger directory and is writeable
 # then save $MYPROGLOG there as well with a unique name that contains the date
@@ -244,7 +241,13 @@ if [ "$PROGLOG" != "/dev/tty" ]
 then
     if [ -d $PCP_LOG_DIR/pmlogger/SaveLogs -a -w $PCP_LOG_DIR/pmlogger/SaveLogs ]
     then
-	now="`date '+%Y%m%d.%H:%M:%S.%N'`"
+	if [ `date +%N` = N ]
+	then
+	    # no %N, %S is the best we can do
+	    now="`date '+%Y%m%d.%H:%M:%S'`"
+	else
+	    now="`date '+%Y%m%d.%H:%M:%S.%N'`"
+	fi
 	link=`echo $MYPROGLOG | sed -e "s@.*$prog@$PCP_LOG_DIR/pmlogger/SaveLogs/$now-$prog@"`
 	if [ ! -f "$link" ]
 	then
@@ -256,7 +259,7 @@ then
 		if [ -w $link ]
 		then
 		    echo "--- Added by $prog when SaveLogs dir found ---" >>$link
-		    echo "Start: `date '+%F %T.%N'`" >>$link
+		    echo "Start [janitor]: `_datestamp`" >>$link
 		    echo "Args: $ARGS" >>$link
 		    _pstree_all $$
 		fi
@@ -273,19 +276,6 @@ then
     status=1
     exit
 fi
-
-_error()
-{
-    [ -n "$controlfile" ] && echo "$prog: [$controlfile:$line]"
-    echo "Error: $@"
-    touch $tmp/err
-}
-
-_warning()
-{
-    [ -n "$controlfile" ] && echo "$prog [$controlfile:$line]"
-    echo "Warning: $@"
-}
 
 _restarting()
 {
@@ -342,321 +332,52 @@ rm -f $tmp/err
 
 rm -f $tmp/pmloggers
 
-_parse_control()
+# come here from _parse_log_control() once per valid line in a control
+# file ... see utilproc.sh for interface definitions
+#
+_callback_log_control()
 {
-    controlfile="$1"
-    line=0
-
-    if echo "$controlfile" | grep -q -e '\.rpmsave$' -e '\.rpmnew$' -e '\.rpmorig$' \
-	-e '\.dpkg-dist$' -e '\.dpkg-old$' -e '\.dpkg-new$' >/dev/null 2>&1
+    if $VERY_VERBOSE
     then
-	_warning "ignored backup control file \"$controlfile\""
-	return
+	pflag=''
+	[ $primary = y ] && pflag=' -P'
+	echo >&2 "Checking for: pmlogger$pflag -h $host ... in $dir ..."
     fi
 
-    sed \
-	-e "s;PCP_ARCHIVE_DIR;$PCP_ARCHIVE_DIR;g" \
-	-e "s;PCP_LOG_DIR;$PCP_LOG_DIR;g" \
-	$controlfile | \
-    while read host primary socks dir args
-    do
-	# start in one place for each iteration (beware relative paths)
-	cd "$here"
-	line=`expr $line + 1`
+    pid=`_find_matching_pmlogger`
 
-
-	if $VERY_VERBOSE 
-	then
-	    case "$host"
-	    in
-	    \#*|'')	# comment or empty
-			;;
-	    *)		echo "[$controlfile:$line] host=\"$host\" primary=\"$primary\" socks=\"$socks\" dir=\"$dir\" args=\"$args\""
-	    		;;
-	    esac
-	fi
-
-	case "$host"
-	in
-	    \#*|'')	# comment or empty
-		continue
-		;;
-	    \$*)	# in-line variable assignment
-		cmd=`echo "$host $primary $socks $dir $args" \
-		     | sed -n \
-			 -e "/='/s/\(='[^']*'\).*/\1/" \
-			 -e '/="/s/\(="[^"]*"\).*/\1/' \
-			 -e '/=[^"'"'"']/s/[;&<>|].*$//' \
-			 -e '/^\\$[A-Za-z][A-Za-z0-9_]*=/{
-s/^\\$//
-s/^\([A-Za-z][A-Za-z0-9_]*\)=/export \1; \1=/p
-}'`
-		if [ -z "$cmd" ]
-		then
-		    # in-line command, not a variable assignment
-		    _warning "in-line command is not a variable assignment, line ignored"
-		else
-		    case "$cmd"
-		    in
-			'export PATH;'*)
-			    _warning "cannot change \$PATH, line ignored"
-			    ;;
-			'export IFS;'*)
-			    _warning "cannot change \$IFS, line ignored"
-			    ;;
-			*)
-			    echo eval $cmd >>$tmp/cmd
-			    eval $cmd
-			    ;;
-		    esac
-		fi
-		continue
-		;;
-	esac
-
-	# set the version and other variables
-	#
-	[ -f $tmp/cmd ] && . $tmp/cmd
-
-	if [ -z "$version" -o "$version" = "1.0" ]
-	then
-	    if [ -z "$version" ]
-	    then
-		_warning "processing default version 1.0 control format"
-		version=1.0
-	    fi
-	    args="$dir $args"
-	    dir="$socks"
-	    socks=n
-	fi
-
-	# do shell expansion of $dir if needed
-	#
-	_do_dir_and_args
-
-	if [ -z "$primary" -o -z "$socks" -o -z "$dir" -o -z "$args" ]
-	then
-	    _error "insufficient fields in control file record"
-	    continue
-	fi
-
-	# substitute LOCALHOSTNAME marker in this config line
-	# (differently for directory and pcp -h HOST arguments)
-	#
-	dirhostname=`hostname || echo localhost`
-	dir=`echo $dir | sed -e "s;LOCALHOSTNAME;$dirhostname;"`
-	[ $primary = y -o "x$host" = xLOCALHOSTNAME ] && host=local:
-
+    if [ -n "$pid" ]
+    then
+	# found matching pmlogger ... cull this one from
 	if $VERY_VERBOSE
 	then
-	    pflag=''
-	    [ $primary = y ] && pflag=' -P'
-	    echo "Checking for: pmlogger$pflag -h $host ... in $dir ..."
-	fi
-
-	# check for directory duplicate entries
-	#
-	if [ "`grep $dir $tmp/dir`" = "$dir" ]
+	    echo >&2 "[$filename:$line] match PID $pid, nothing to be done"
+	elif $VERBOSE
 	then
-	    _error "Cannot start more than one pmlogger instance for archive directory \"$dir\""
-	    continue
+	    echo >&2 "Pass 3: PID $pid matches control [$filename:$line], nothing to be done"
+	fi
+	sed <$tmp/loggers >$tmp/tmp -e "/^$pid	/d"
+	mv $tmp/tmp $tmp/loggers
+    fi
+}
+
+# for $VERBOSE debugging ...
+# report ps(1) info for pids from $1 file (in $tmp/loggers format)
+#
+_debug_report()
+{
+    $PCP_PS_PROG $PCP_PS_ALL_FLAGS >$tmp/ps-all 2>&1
+    head -1 $tmp/ps-all
+    $PCP_AWK_PROG  <$1 '{ print $1 }' \
+    | while read pid
+    do
+	$PCP_AWK_PROG "\$2 == $pid { print }" <$tmp/ps-all >$tmp/debug
+	if [ -s $tmp/debug ]
+	then
+	    cat $tmp/debug
 	else
-	    echo "$dir" >>$tmp/dir
+	    echo "Warning: PID $pid matched but vanished from $PCP_PS_PROG $PCP_PS_ALL_FLAGS output"
 	fi
-
-	# make sure output directory hierarchy exists and $PCP_USER
-	# user can write there
-	#
-	if [ ! -d "$dir" ]
-	then
-	    # mode rwxrwxr-x is the default for pcp:pcp dirs
-	    umask 002
-	    mkdir -p -m 0775 "$dir" >$tmp/tmp 2>&1
-	    # reset the default mode to rw-rw-r- for files
-	    umask 022
-	    if [ ! -d "$dir" ]
-	    then
-		cat $tmp/tmp
-		_error "cannot create directory ($dir) for PCP archive files"
-		continue
-	    else
-		_warning "creating directory ($dir) for PCP archive files"
-	    fi
-	fi
-
-	if cd "$dir"
-	then
-	    :
-	else
-	    _error "cannot chdir to directory ($dir) for PCP archive files"
-	    continue
-	fi
-	dir=`$PWDCMND`
-
-	if [ ! -w "$dir" ]
-	then
-	    _warning "no write access in $dir, skip lock file processing"
-	    ls -ld "$dir"
-	else
-	    # demand mutual exclusion
-	    #
-	    rm -f $tmp/stamp $tmp/out
-	    delay=200	# tenths of a second
-	    while [ $delay -gt 0 ]
-	    do
-		if pmlock -i "$$ pmlogger_janitor" -v "$dir/lock" >$tmp/out 2>&1
-		then
-		    echo "$dir/lock" >$tmp/lock
-		    if $VERY_VERBOSE
-		    then
-			echo "Acquired lock:"
-			LC_TIME=POSIX ls -l "$dir/lock"
-			[ -s "$dir/lock" ] && cat "$dir/lock"
-		    fi
-		    break
-		else
-		    [ -f $tmp/stamp ] || touch -t `pmdate -30M %Y%m%d%H%M` $tmp/stamp
-		    find $tmp/stamp -newer "$dir/lock" -print 2>/dev/null >$tmp/tmp
-		    if [ -s $tmp/tmp ]
-		    then
-			if [ -f "$dir/lock" ]
-			then
-			    echo "$prog: Warning: removing lock file older than 30 minutes"
-			    LC_TIME=POSIX ls -l "$dir/lock"
-			    [ -s "$dir"/lock" ] && cat "$dir"/lock"
-			    rm -f "$dir/lock"
-			else
-			    # there is a small timing window here where pmlock
-			    # might fail, but the lock file has been removed by
-			    # the time we get here, so just keep trying
-			    #
-			    :
-			fi
-		    fi
-		fi
-		pmsleep 0.1
-		delay=`expr $delay - 1`
-	    done
-
-	    if [ $delay -eq 0 ]
-	    then
-		# failed to gain mutex lock
-		#
-		# maybe pmlogger_daily is running ... check it, and silently
-		# move on if this is the case
-		#
-		# Note: $PCP_RUN_DIR may not exist (see pmlogger_daily note),
-		#       but only if pmlogger_daily has not run, so no chance
-		#       of a collision
-		#
-		if [ -f "$PCP_RUN_DIR"/pmlogger_daily.pid ]
-		then
-		    # maybe, check pid matches a running /bin/sh
-		    #
-		    pid=`cat "$PCP_RUN_DIR"/pmlogger_daily.pid`
-		    if _get_pids_by_name sh | grep "^$pid\$" >/dev/null
-		    then
-			# seems to be still running ... nothing for us to see
-			# or do here
-			#
-			continue
-		    fi
-		fi
-		if [ -f "$dir/lock" ]
-		then
-		    echo "$prog: Warning: is another PCP cron job running concurrently?"
-		    LC_TIME=POSIX ls -l "$dir/lock"
-		    [ -s "$dir/lock" ] && cat "$dir/lock"
-		else
-		    echo "$prog: `cat $tmp/out`"
-		fi
-		_warning "failed to acquire exclusive lock ($dir/lock) ..."
-		continue
-	    fi
-	fi
-
-	pid=''
-	if [ "$primary" = y ]
-	then
-	    if test -e "$PCP_TMP_DIR/pmlogger/primary"
-	    then
-		if $VERY_VERBOSE
-		then 
-		    _host=`sed -n 2p <"$PCP_TMP_DIR/pmlogger/primary"`
-		    _arch=`sed -n 3p <"$PCP_TMP_DIR/pmlogger/primary"`
-		    echo "... try $PCP_TMP_DIR/pmlogger/primary: host=$_host arch=$_arch"
-		fi
-		pid=`_get_primary_logger_pid`
-		if [ -z "$pid" ]
-		then
-		    if $VERY_VERBOSE
-		    then
-			echo "primary pmlogger process pid not found"
-			ls -l "$PCP_RUN_DIR/pmlogger.pid"
-			ls -l "$PCP_TMP_DIR/pmlogger"
-		    fi
-		elif _get_pids_by_name pmlogger | grep "^$pid\$" >/dev/null
-		then
-		    $VERY_VERBOSE && echo "primary pmlogger process $pid identified, OK"
-		    $VERY_VERY_VERBOSE && $PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep -E '[P]ID|/[p]mlogger( |$)'
-		else
-		    $VERY_VERBOSE && echo "primary pmlogger process $pid not running"
-		    $VERY_VERY_VERBOSE && $PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep -E '[P]ID|/[p]mlogger( |$)'
-		    pid=''
-		fi
-	    else
-		if $VERY_VERBOSE
-		then
-		    echo "$PCP_TMP_DIR/pmlogger/primary: missing?"
-		    echo "Contents of $PCP_TMP_DIR/pmlogger"
-		    ls -l $PCP_TMP_DIR/pmlogger
-		    echo "--- end of ls output ---"
-		fi
-	    fi
-	else
-	    for log in $PCP_TMP_DIR/pmlogger/[0-9]*
-	    do
-		[ "$log" = "$PCP_TMP_DIR/pmlogger/[0-9]*" ] && continue
-		if $VERY_VERBOSE
-		then
-		    _host=`sed -n 2p <$log`
-		    _arch=`sed -n 3p <$log`
-		    $PCP_ECHO_PROG $PCP_ECHO_N "... try $log host=$_host arch=$_arch: ""$PCP_ECHO_C"
-		fi
-		# throw away stderr in case $log has been removed by now
-		match=`sed -e '3s@/[^/]*$@@' $log 2>/dev/null | \
-		$PCP_AWK_PROG '
-BEGIN				{ m = 0 }
-NR == 3 && $0 == "'$dir'"	{ m = 2; next }
-END				{ print m }'`
-		$VERY_VERBOSE && echo "match=$match"
-		if [ "$match" = 2 ]
-		then
-		    pid=`echo $log | sed -e 's,.*/,,'`
-		    if _get_pids_by_name pmlogger | grep "^$pid\$" >/dev/null
-		    then
-			$VERY_VERBOSE && echo "pmlogger process $pid identified, OK"
-			$VERY_VERY_VERBOSE && $PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep -E '[P]ID|/[p]mlogger( |$)'
-			break
-		    fi
-		    $VERY_VERBOSE && echo "pmlogger process $pid not running, skip"
-		    $VERY_VERY_VERBOSE && $PCP_PS_PROG $PCP_PS_ALL_FLAGS | grep -E '[P]ID|/[p]mlogger( |$)'
-		    pid=''
-		else
-		    $VERY_VERBOSE && echo "different directory, skip"
-		fi
-	    done
-	fi
-
-	if [ -n "$pid" ]
-	then
-	    # found matching pmlogger ... cull this one from
-	    $VERY_VERBOSE && echo "[$controlfile:$line] match PID $pid, nothing to be done"
-	    sed <$tmp/loggers >$tmp/tmp -e "/^$pid	/d"
-	    mv $tmp/tmp $tmp/loggers
-	fi
-
-	_unlock "$dir"
     done
 }
 
@@ -682,9 +403,21 @@ NR == 4 && NF == 1	{ if ($1 == "pmlogger_check" ||
 			}'
     done
 fi
+if $VERBOSE
+then
+    if [ -s $tmp/loggers ]
+    then
+	echo >&2 "Pass 1: pmloggers from $PCP_TMP_DIR/pmlogger"
+	_debug_report >&2 $tmp/loggers
+    else
+	echo >&2 "Pass 1: no pmloggers from $PCP_TMP_DIR/pmlogger"
+	ls -l $PCP_TMP_DIR/pmlogger
+    fi
+fi
 
 # Pass 2 - look in the ps(1) output for processes with -m "note" args
 # that suggests they were started by pmlogger_check and friends
+rm -f $tmp/tmp
 $PCP_PS_PROG $PCP_PS_ALL_FLAGS 2>&1 \
 | sed -n -e 's/$/ /' -e '/\/[p]mlogger /{
 /-m *pmlogger_check /bok
@@ -706,12 +439,23 @@ do
     do
 	if grep "^$pid	$dir\$" $tmp/loggers >/dev/null
 	then
-	    : already have this one from the status files
+	    :
 	else
-	    echo "$pid	$dir" >>$tmp/loggers
+	    echo "$pid	$dir" >>$tmp/tmp
 	fi
     done
 done
+if [ -s $tmp/tmp ]
+then
+    if $VERBOSE
+    then
+	echo >&2 "Pass 2: add pmloggers from $PCP_PS_PROG $PCP_PS_ALL_FLAGS"
+	_debug_report >&2 $tmp.tmp
+    fi
+    cat $tmp/tmp >>$tmp/loggers
+else
+    $VERBOSE && echo >&2 "Pass 2: no additional pmloggers from $PCP_PS_PROG $PCP_PS_ALL_FLAGS"
+fi
 
 # Pass 3 - parse the control file(s) culling pmlogger instances that
 # match, as these ones are still under the control of pmlogger_check
@@ -720,8 +464,38 @@ done
 append=`ls $CONTROLDIR 2>/dev/null | LC_COLLATE=POSIX sort | sed -e "s;^;$CONTROLDIR/;g"`
 for c in $CONTROL $append
 do
-    _parse_control "$c"
+    _parse_log_control "$c"
 done
+
+# check for any archives from remote pmloggers via pmproxy or
+# pmlogpush ... if found, synthesize a control file for them
+#
+here=`pwd`
+if cd "$PCP_REMOTE_ARCHIVE_DIR"
+then
+    for _host in *
+    do
+	# TODO - does this need to be smarter?  e.g. check for some
+	# minimal dir contents (.index file?)
+	if [ -d "$_host" ]
+	then
+	    $VERBOSE && echo >&2 "Info: processing archives from remote pmlogger on host $_host"
+	    echo '$version=1.1' >$tmp/control
+	    # optional global controls first
+	    [ -f "./control" ] && cat "./control" >>$tmp/control
+	    # optional per-host controls next
+	    [ -f "$_host/control" ] && cat "$_host/control" >>$tmp/control
+	    echo "$_host	n n PCP_REMOTE_ARCHIVE_DIR/$_host +" >>$tmp/control
+	    if $VERY_VERBOSE
+	    then
+		echo >&2 "Synthesized control file ..."
+		cat >&2 $tmp/control
+	    fi
+	    _parse_log_control $tmp/control
+	fi
+    done
+    cd $here
+fi
 
 if [ ! -s $tmp/loggers ]
 then
@@ -733,7 +507,7 @@ fi
 # errors/warnings from here on have nothing to do with any specific
 # control file (or line in a control file)
 #
-controlfile=''
+filename=''
 
 # Pass 4 - kill of orphaned pmloggers
 #
@@ -750,7 +524,7 @@ do
 	touch $tmp/one-trip
     fi
     echo "Killing (TERM) pmlogger with PID $pid"
-    eval $KILL -s TERM $pid
+    $KILL -s TERM $pid
 done
 
 # Pass 5 - compress archives in orphans' directories
@@ -818,7 +592,7 @@ else
 	if $PCP_PS_PROG -p "$pid" >/dev/null 2>&1
 	then
 	    echo "Killing (KILL) pmlogger with PID $pid"
-	    eval $KILL -s KILL $pid >/dev/null 2>&1
+	    $KILL -s KILL $pid >/dev/null 2>&1
 	    delay=30        # tenths of a second
 	    while $PCP_PS_PROG -f -p "$pid" >$tmp/alive 2>&1
 	    do
@@ -828,7 +602,7 @@ else
 		    delay=`expr $delay - 1`
 		    continue
 		fi
-		echo "$prog: Error: pmlogger process(es) will not die"
+		echo "$prog: Error: pmlogger process PID $pid will not die"
 		cat $tmp/alive
 		status=1
 		break

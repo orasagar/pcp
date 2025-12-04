@@ -8,9 +8,7 @@
 
 #include <pcp/pmapi.h>
 #include "libpcp.h"
-#ifdef HAVE_STRINGS_H
-#include <strings.h>
-#endif
+#include <string.h>
 
 static int	nmetric;		/* for metric ... args */
 static char	**name = NULL;
@@ -108,12 +106,12 @@ main(int argc, char **argv)
     pmResult	*rp;
     unsigned long	highwater = 0;
     char	*q;
-    struct timeval delta = { 15, 0 };
-    struct timeval startTime;
-    struct timeval endTime;
-    struct timeval appStart;
-    struct timeval appEnd;
-    struct timeval appOffset;
+    struct timespec delta = { 15, 0 };
+    struct timespec startTime;
+    struct timespec endTime;
+    struct timespec appStart;
+    struct timespec appEnd;
+    struct timespec appOffset;
 #ifdef IS_MINGW
     MEMORYSTATUSEX	winmemstats;
 #endif
@@ -183,7 +181,7 @@ main(int argc, char **argv)
 
 	case 'i':	/* list of external instance names */
 	    q = optarg;
-	    while ((q = index(optarg, ',')) != NULL) {
+	    while ((q = strchr(optarg, ',')) != NULL) {
 		ninst++;
 		instname = (char **)realloc(instname, (ninst+1)*sizeof(instname[0]));
 		if (instname == NULL) {
@@ -362,10 +360,10 @@ Options:\n\
 		pmGetProgname(), pmErrStr(sts));
 	    exit(1);
 	}
-  	startTime = label.ll_start;
+  	startTime = label.start;
 	if ((sts = pmGetArchiveEnd(&endTime)) < 0) {
 	    endTime.tv_sec = PM_MAX_TIME_T;
-	    endTime.tv_usec = 0;
+	    endTime.tv_nsec = 0;
 	    fflush(stdout);
 	    fprintf(stderr, "%s: Cannot locate end of archive: %s\n",
 		pmGetProgname(), pmErrStr(sts));
@@ -375,9 +373,12 @@ Options:\n\
 	}
     }
     else {
-	gettimeofday(&startTime, NULL);
+	struct timeval	tmp_tv;
+	gettimeofday(&tmp_tv, NULL);
+	startTime.tv_sec = tmp_tv.tv_sec;
+	startTime.tv_nsec = tmp_tv.tv_usec / 1000;
 	endTime.tv_sec = PM_MAX_TIME_T;
-	endTime.tv_usec = 0;
+	endTime.tv_nsec = 0;
     }
 
     if (zflag) {
@@ -388,7 +389,7 @@ Options:\n\
 	}
 	if (type == PM_CONTEXT_ARCHIVE)
 	    printf("Note: timezone set to local timezone of host \"%s\" from archive\n\n",
-		label.ll_hostname);
+		label.hostname);
 	else
 	    printf("Note: timezone set to local timezone of host \"%s\"\n\n", host);
     }
@@ -488,14 +489,12 @@ Options:\n\
 
 	if (type == PM_CONTEXT_ARCHIVE) {
 	    if (mode == PM_MODE_INTERP) {
-		int		delta_msec;
-		delta_msec = delta.tv_sec*1000 + delta.tv_usec/1000;
-		if ((sts = pmSetMode(mode, &appStart, delta_msec)) < 0) {
+		if ((sts = pmSetMode(mode, &appStart, &delta)) < 0) {
 		    fprintf(stderr, "%s: pmSetMode: %s\n", pmGetProgname(), pmErrStr(sts));
 		    exit(1);
 		}
 	    }
-	    pmtimevalInc(&appStart, &delta);
+	    pmtimespecInc(&appStart, &delta);
 	}
 
 	if (nmetric > 0) {
@@ -509,7 +508,7 @@ Options:\n\
 		exit(1);
 	    }
 	    else {
-		if (delta.tv_sec > 0 || delta.tv_usec > 0) {
+		if (delta.tv_sec > 0 || delta.tv_nsec > 0) {
 		    char	now[26];
 		    time_t	stamp;
 		    stamp = rp->timestamp.tv_sec;
@@ -539,7 +538,7 @@ Options:\n\
 	    }
 
 	    if (type != PM_CONTEXT_ARCHIVE) {
-		__pmtimevalSleep(delta);
+		__pmtimespecSleep(delta);
 	    }
 	}
 	else

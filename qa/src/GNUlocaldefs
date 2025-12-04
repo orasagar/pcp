@@ -54,7 +54,8 @@ CFILES = disk_test.c exercise.c context_test.c chkoptfetch.c \
 	stampconv.c time_stamp.c archend.c scandata.c wait_for_values.c \
 	dumpstack.c usergroup.c derived_help.c ready-or-not.c cleanmapdir.c \
 	throttle.c throttle_timeout.c y2038.c bigpmcdpmids.c pdu-gadget.c \
-	strnfoo.c mmv_ondisk.c newcontext.c
+	strnfoo.c mmv_ondisk.c newcontext.c api_abi.c interp_bug3.c \
+	pmsetmode.c scanindex.c localtime.c httpcache.c unregister.c
 
 ifeq ($(shell test -f ../localconfig && echo 1), 1)
 include ../localconfig
@@ -108,9 +109,10 @@ endif
 
 ifeq ($(shell test $(PCP_VER) -ge 3901 && echo 1), 1)
 CFILES += getoptions.c
+XTRATARGETS += getoptions_v2
 else
 MYFILES += getoptions.c
-LDIRT += getoptions
+LDIRT += getoptions getoptions_v2
 endif
 
 ifeq ($(shell test -f /usr/include/pcp/fault.h && echo 1), 1)
@@ -122,6 +124,17 @@ XTRATARGETS += check_fault_injection exercise_fault
 endif
 MYFILES += check_fault_injection.c exercise_fault.c
 LDIRT += check_fault_injection exercise_fault
+
+# in a build tree with libpcp3 present
+#
+LIBPCP3 = libpcp.$(DSOSUFFIX).3
+ifeq "$(TARGET_OS)" "darwin"
+LIBPCP3 = libpcp.3.$(DSOSUFFIX)
+endif
+XTRATARGETS += api_abi_v2
+ifeq ($(shell test -f ../../src/libpcp3/src/include/pcp/pmapi.h -a ../../src/libpcp3/src/$(LIBPCP3) && echo 1), 1)
+XTRATARGETS += api_abi_compat
+endif
 
 # POSIXFILES and TRACEFILES are ones we don't even try to build on
 # non-Posix platforms like Windows
@@ -143,7 +156,7 @@ PYTHONFILES = \
 	test_pcp.python test_pmcc.python \
 	test_pmi.python check_import.python \
 	test_mmv.python test_webapi.python \
-	test_pcp_derived.python \
+	test_pcp_derived.python test_bad_import.python \
 	test_pcp_options.python test_pcp_getopts.python \
 	test_pcp_time.python test_pmnswalk.python \
 	pmapi_exceptions.python pmapi_daemon.python \
@@ -186,8 +199,8 @@ PSCRIPTS = $(PERLFILES) $(PYTHONFILES)
 CFILES_TARGETS = $(CFILES)
 
 TARGETS = $(subst broken_pmda,,$(basename $(patsubst %.c,%,$(CFILES_TARGETS)))) \
-	chkctx2_lite template \
-	fetchrate_lite pv
+	chkctx2_lite template fetchrate_lite pv api_abi_v2 \
+	$(XTRATARGETS)
 
 ifeq "$(TARGET_OS)" "linux"
 TARGETS += qa_shmctl.$(DSOSUFFIX) qa_sem_msg_ctl.$(DSOSUFFIX) \
@@ -202,12 +215,21 @@ endif
 LCFLAGS = -DHAVE_TRACE
 LLDLIBS	= $(LDFLAGS) $(PCPLIB)
 
+# NVIDIA mock library for testing
 ifneq ($(NVIDIAQALIB),)
 LIBTARGET = true
 MYCFILES += nvidia-ml.c
 LDIRT += nvidia-ml.o
 LCFLAGS += $(NVIDIACFLAGS)
 TARGETS += $(NVIDIAQALIB)
+endif
+
+# InfiniBand mock libraries for testing
+ifneq ($(IBUMADQALIB),)
+LIBTARGET = true
+MYCFILES += infiniband-umad.c infiniband-verbs.c
+LDIRT += infiniband-umad.o infiniband-verbs.o
+TARGETS += $(IBUMADQALIB) $(IBVERBSQALIB)
 endif
 
 ifeq "$(HAVE_CMOCKA)" "true"
@@ -299,7 +321,7 @@ diowr:	diowr.c
 	rm -f $@
 	$(CCF) $(CDEFS) -o $@ diowr.c
 
-endian:	endian.c
+endian:	endian.c localconfig.h
 	rm -f $@
 	$(CCF) $(CDEFS) -o $@ endian.c
 
@@ -325,79 +347,79 @@ sizeof:	sizeof.c
 
 template:	template.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ template.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 exercise:	exercise.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ exercise.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
-chkacc1:	chkacc1.c
+chkacc1:	chkacc1.c localconfig.h
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ chkacc1.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
-chkacc2:	chkacc2.c
+chkacc2:	chkacc2.c localconfig.h
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ chkacc2.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
-chkacc3:	chkacc3.c
+chkacc3:	chkacc3.c localconfig.h
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ chkacc3.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 ipc:	ipc.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ ipc.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 chk_memleak:	chk_memleak.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ chk_memleak.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 chknumval:	chknumval.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ chknumval.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 logcontrol:	logcontrol.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ logcontrol.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 numberstr: numberstr.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ numberstr.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 pmcdgone:	pmcdgone.c localconfig.h
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ pmcdgone.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 slow_af:	slow_af.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ slow_af.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 mmv_poke:	mmv_poke.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ mmv_poke.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 labels:	labels.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ labels.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 mergelabels:	mergelabels.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ mergelabels.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 mergelabelsets:	mergelabelsets.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ mergelabelsets.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 parselabels:	parselabels.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ parselabels.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 traverse_return_codes:	traverse_return_codes.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ traverse_return_codes.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 getdomainname:	getdomainname.c
 	rm -f $@
-	$(CCF) $(CDEFS) -o $@ getdomainname.c $(LDLIBS)
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
 
 pmstrn:	pmstrn.c
 	rm -f $@
@@ -446,6 +468,39 @@ mmv_ondisk:	mmv_ondisk.c
 newcontext:	newcontext.c
 	rm -f $@
 	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
+
+scanindex:	scanindex.c
+	rm -f $@
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
+
+localtime:	localtime.c
+	rm -f $@
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
+
+unregister:	unregister.c
+	rm -f $@
+	$(CCF) $(CDEFS) -o $@ $< $(LDLIBS)
+
+# --- need libpcp but different versions of PMAPI_VERSION and/or
+#     libpcp.$(DSOSUFFIX)
+#
+
+getoptions_v2:	getoptions.c
+	rm -f $@
+	$(CCF) $(CDEFS) -DPMAPI_VERSION=2 -o $@ $< $(LDLIBS)
+
+api_abi_v2:	api_abi.c
+	rm -f $@
+	$(CCF) $(CDEFS) -DPMAPI_VERSION=2 -o $@ $< $(LDLIBS)
+
+# have to play games with libpcp.h so we include the one from
+# ../../src/libpcp3/src/include/pcp, not ./libpcp.h
+#
+api_abi_compat:	api_abi.c libpcp.h
+	rm -f $@ 
+	mv libpcp.h libpcp.h.save
+	$(CC) -I../../src/libpcp3/src/include/pcp $(CFLAGS) $(CDEFS) -o $@ $< ../../src/libpcp3/src/$(LIBPCP3)
+	mv libpcp.h.save libpcp.h
 
 # --- need libpcp but also PM_CONTEXT_LOCAL
 #
@@ -497,7 +552,7 @@ pmdashutdown:	pmdashutdown.c
 	rm -f $@
 	$(CCF) $(CDEFS) -o $@ $@.c $(LDLIBS) -lpcp_pmda
 
-dumb_pmda: dumb_pmda.c
+dumb_pmda: dumb_pmda.c localconfig.h
 	$(CCF) $(LCDEFS) $(LCOPTS) -o $@ $@.c $(LDLIBS) -lpcp_pmda
 
 pmdacache: pmdacache.c
@@ -600,6 +655,9 @@ check_pmi_errconv:	check_pmi_errconv.c
 
 # --- need libpcp_web
 #
+httpcache:	httpcache.c
+	rm -f $@
+	$(CCF) $(CDEFS) -o $@ $@.c $(LDLIBS) -lpcp_pmda -lpcp_web -lpcp_mmv
 
 httpfetch:	httpfetch.c
 	rm -f $@
@@ -619,11 +677,11 @@ sha1ext2int:	sha1ext2int.o
 
 check_fault_injection: check_fault_injection.c
 	rm -f $@
-	$(CCF) $(CDEFS) -DPM_FAULT_INJECTION=1 -o $@ $@.c -lpcp_fault -lpcp -lpcp_pmda
+	$(CCF) $(CDEFS) -DPM_FAULT_INJECTION=1 -o $@ $@.c $(LDLIBS) -lpcp_fault -lpcp -lpcp_pmda
 
 exercise_fault: exercise_fault.c
 	rm -f $@
-	$(CCF) $(CDEFS) -DPM_FAULT_INJECTION=1 -o $@ $@.c -lpcp_fault -lpcp -lpcp_pmda
+	$(CCF) $(CDEFS) -DPM_FAULT_INJECTION=1 -o $@ $@.c $(LDLIBS) -lpcp_fault -lpcp -lpcp_pmda
 
 # --- need lib for pthreads
 #
@@ -641,7 +699,7 @@ else
 	$(CCF) $(CDEFS) -o $@ $@.c $(LIB_FOR_PTHREADS) $(LDLIBS)
 endif
 
-multithread2:	multithread2.c
+multithread2:	multithread2.c localconfig.h
 	rm -f $@
 	$(CCF) $(CDEFS) -o $@ $@.c $(LIB_FOR_PTHREADS) $(LDLIBS)
 
@@ -785,7 +843,7 @@ dumpstack:	dumpstack.c
 ifeq "$(TOPDIR)" ""
 	$(CC) -I$(PCP_INC_DIR) -I. $(PCFLAGS) -o $@ -rdynamic $^ -lpcp
 else
-	$(CC) -I$(TOPDIR)/src/include -I. $(PCFLAGS) -o $@ -rdynamic $^ -L$(TOPDIR)/src/libpcp/$(LIBPCP_ABIDIR) -lpcp
+	$(CC) -I$(TOPDIR)/src/include -I. $(PCFLAGS) -o $@ -rdynamic $^ -L$(TOPDIR)/src/libpcp/$(LIBPCP_ABIDIR) $(LDLIBS) -lpcp
 endif
 
 ifneq ($(NVIDIAQALIB),)
@@ -793,8 +851,15 @@ $(NVIDIAQALIB):	nvidia-ml.o
 	$(CC) $(LDFLAGS) $(_SHAREDOPTS) -o $@ $< $(LDLIBS)
 endif
 
+ifneq ($(IBUMADQALIB),)
+$(IBUMADQALIB):	infiniband-umad.o
+	$(CC) $(LDFLAGS) $(_SHAREDOPTS) -o $@ $< $(LDLIBS)
+
+$(IBVERBSQALIB):	infiniband-verbs.o
+	$(CC) $(LDFLAGS) $(_SHAREDOPTS) -o $@ $< $(LDLIBS)
+endif
+
 arch_maxfd.o:	localconfig.h
-scale.o:	localconfig.h
 
 779246.o:	libpcp.h
 aggrstore.o:	libpcp.h
@@ -855,14 +920,14 @@ multithread14.o:	libpcp.h
 nameall.o:	libpcp.h
 parsehostattrs.o:	libpcp.h
 parsehostspec.o:	libpcp.h
-pdubufbounds.o:	libpcp.h
-pducheck.o:	libpcp.h
+pdubufbounds.o:	libpcp.h localconfig.h
+pducheck.o:	libpcp.h localconfig.h
 pducrash.o:	libpcp.h
-pdu-server.o:	libpcp.h
+pdu-server.o:	libpcp.h localconfig.h
 pmcdgone.o:	libpcp.h
 pmlcmacro.o:	libpcp.h
 pmnsinarchives.o:	libpcp.h
-pmnsunload.o:	libpcp.h
+pmnsunload.o:	libpcp.h localconfig.h
 proc_test.o:	libpcp.h
 qa_libpcp_compat.o:	libpcp.h
 qa_timezone.o:	libpcp.h
@@ -882,6 +947,7 @@ torture_pmns.o:	libpcp.h
 tztest.o:	libpcp.h
 unpack.o:	libpcp.h
 unpickargs.o:	libpcp.h
+username.o:	localconfig.h
 xarch.o:	libpcp.h
 xlog.o:	libpcp.h
 xmktime.o:	libpcp.h

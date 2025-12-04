@@ -401,11 +401,11 @@ refresh_all_clusters(int numclusters, int *clusters)
 	PyList_SET_ITEM(list, i, num);
     }
 
-    arglist = Py_BuildValue("(N)", list);
+    arglist = Py_BuildValue("(O)", list);
+    Py_DECREF(list);
     if (arglist == NULL)
 	return -ENOMEM;
     result = PyObject_Call(refresh_all_func, arglist, NULL);
-    Py_DECREF(list);
     Py_DECREF(arglist);
     if (result == NULL)
 	return callback_error("refresh_all_clusters");
@@ -455,7 +455,7 @@ refresh(int numpmid, pmID *pmidlist)
 }
 
 static int
-fetch(int numpmid, pmID *pmidlist, pmResult **rp, pmdaExt *pmda)
+fetch(int numpmid, pmID *pmidlist, pmdaResult **rp, pmdaExt *pmda)
 {
     int sts;
 
@@ -801,7 +801,7 @@ lookup_metric(pmID pmid, pmdaExt *pmda)
 }
 
 static int
-store(pmResult *result, pmdaExt *pmda)
+store(pmdaResult *result, pmdaExt *pmda)
 {
     int		i, j, sts, type;
     pmAtomValue	av;

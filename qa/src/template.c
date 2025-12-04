@@ -84,10 +84,12 @@ main(int argc, char **argv)
 
 	case 'f':	/* my flag */
 	    fflag++;
+	    fprintf(stderr, "fflag=%d ... make BSD cc(1) happy\n", fflag);
 	    break;
 
 	case 'i':	/* my instances */
 	    iflag++;
+	    fprintf(stderr, "iflag=%d ... make BSD cc(1) happy\n", iflag);
 	    /* TODO extract instances from opts.optarg */
 	    break;
 
@@ -163,22 +165,22 @@ main(int argc, char **argv)
     if (opts.align_optarg != NULL || opts.start_optarg != NULL ||
         opts.finish_optarg != NULL || opts.origin_optarg != NULL) {
 	printf("Start time: ");
-	pmPrintStamp(stdout, &opts.start);
+	pmtimespecPrint(stdout, &opts.start);
 	putchar('\n');
 	printf("Origin time: ");
-	pmPrintStamp(stdout, &opts.origin);
+	pmtimespecPrint(stdout, &opts.origin);
 	putchar('\n');
 	printf("Finish time: ");
-	pmPrintStamp(stdout, &opts.finish);
+	pmtimespecPrint(stdout, &opts.finish);
 	putchar('\n');
     }
 
     if (sflag)
 	printf("Got -s \"%d\"\n", opts.samples);
 
-    if (opts.interval.tv_sec > 0 || opts.interval.tv_usec > 0)
-	printf("Got -t %d.%06d (secs)\n",
-		(int)opts.interval.tv_sec, (int)opts.interval.tv_usec);
+    if (opts.interval.tv_sec > 0 || opts.interval.tv_nsec > 0)
+	printf("Got -t %d.%09d (secs)\n",
+		(int)opts.interval.tv_sec, (int)opts.interval.tv_nsec);
 
     p = getenv("PCP_CONTAINER");
     if (p != NULL)

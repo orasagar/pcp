@@ -5,6 +5,8 @@ Released under the GNU GPLv2+, see the COPYING file
 in the source distribution for its full text.
 */
 
+#include "config.h" // IWYU pragma: keep
+
 #include "darwin/DarwinProcess.h"
 
 #include <libproc.h>
@@ -233,7 +235,7 @@ static void DarwinProcess_updateCmdLine(const struct kinfo_proc* k, Process* pro
    /* Save where the argv[0] string starts. */
    sp = cp;
 
-   int end = 0;
+   size_t end = 0;
    for ( np = NULL; c < nargs && cp < &procargs[size]; cp++ ) {
       if ( *cp == '\0' ) {
          c++;
@@ -244,7 +246,7 @@ static void DarwinProcess_updateCmdLine(const struct kinfo_proc* k, Process* pro
          /* Note location of current '\0'. */
          np = cp;
          if (end == 0) {
-            end = cp - sp;
+            end = (size_t)(cp - sp);
          }
       }
    }
@@ -258,7 +260,7 @@ static void DarwinProcess_updateCmdLine(const struct kinfo_proc* k, Process* pro
       goto ERROR_B;
    }
    if (end == 0) {
-      end = np - sp;
+      end = (size_t)(np - sp);
    }
 
    Process_updateCmdline(proc, sp, 0, end);
@@ -341,7 +343,7 @@ void DarwinProcess_setFromKInfoProc(Process* proc, const struct kinfo_proc* ps, 
        * field is enabled in the settings.
        */
       if (settings->ss->flags & PROCESS_FLAG_TTY) {
-         proc->tty_name = DarwinProcess_getDevname(proc->tty_nr);
+         proc->tty_name = DarwinProcess_getDevname((dev_t)proc->tty_nr);
          if (!proc->tty_name) {
             /* devname failed: prevent us from calling it again */
             proc->tty_nr = NODEV;
@@ -370,8 +372,8 @@ void DarwinProcess_setFromLibprocPidinfo(DarwinProcess* proc, DarwinProcessTable
    const DarwinMachine* dhost = (const DarwinMachine*) proc->super.super.host;
 
    uint64_t total_existing_time_ns = proc->stime + proc->utime;
-   uint64_t user_time_ns = pti.pti_total_user;
-   uint64_t system_time_ns = pti.pti_total_system;
+   uint64_t user_time_ns = Platform_machTicksToNanoseconds(pti.pti_total_user);
+   uint64_t system_time_ns = Platform_machTicksToNanoseconds(pti.pti_total_system);
    uint64_t total_current_time_ns = user_time_ns + system_time_ns;
 
    if (total_existing_time_ns < total_current_time_ns) {
@@ -455,7 +457,7 @@ void DarwinProcess_scanThreads(DarwinProcess* dp, DarwinProcessTable* dpt) {
       uint64_t tid = identifer_info.thread_id;
 
       bool preExisting;
-      Process *tprocess = ProcessTable_getProcess(&dpt->super, tid, &preExisting, DarwinProcess_new);
+      Process *tprocess = ProcessTable_getProcess(&dpt->super, (pid_t)tid, &preExisting, DarwinProcess_new);
       tprocess->super.updated = true;
       dpt->super.totalTasks++;
 
@@ -476,6 +478,7 @@ void DarwinProcess_scanThreads(DarwinProcess* dp, DarwinProcessTable* dpt) {
       tprocess->st_uid           = proc->st_uid;
       tprocess->user             = proc->user;
 
+#ifdef HAVE_THREAD_EXTENDED_INFO_DATA_T
       thread_extended_info_data_t extended_info;
       mach_msg_type_number_t extended_info_count = THREAD_EXTENDED_INFO_COUNT;
       ret = thread_info(thread_list[i], THREAD_EXTENDED_INFO, (thread_info_t) &extended_info, &extended_info_count);
@@ -495,10 +498,16 @@ void DarwinProcess_scanThreads(DarwinProcess* dp, DarwinProcessTable* dpt) {
          isProcessStuck |= true;
          tdproc->super.state = UNINTERRUPTIBLE_WAIT;
       }
+#endif
 
       // TODO: depend on setting
+#ifdef HAVE_THREAD_EXTENDED_INFO_DATA_T
       const char* name = extended_info.pth_name[0] != '\0' ? extended_info.pth_name : proc->procComm;
-      Process_updateCmdline(tprocess, name, 0, strlen(name));
+#else
+      // Not provided in thread_basic_info_data_t; fall back to the process name
+      const char* name = proc->procComm;
+#endif
+      Process_updateCmdline(tprocess, name, 0, name ? strlen(name) : 0);
 
       if (!preExisting)
          ProcessTable_add(&dpt->super, tprocess);

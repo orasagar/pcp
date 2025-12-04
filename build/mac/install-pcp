@@ -272,6 +272,9 @@ _collect_file()
 
     if [ ! -r $file ]
     then
+	_debug "Hunt for missing file ($file) ..."
+	leaf=`basename "$file"`
+	find $root -name "$leaf" -exec ls -ld '{}' ';'
 	_error "Unable to find $file"
     fi
 
@@ -352,7 +355,7 @@ _install_file()
 			then
 			    _warn "Unable to remove existing $target, continuing"
 			fi
-			if _cmd $MV $source $target
+			if _cmd $CP $source $target
 			then
 			    installed=true
 			else
@@ -409,7 +412,7 @@ _install_file()
 	    then
 		_error "$target exists but is a directory"
 	    else
-		if _cmd $MV $source $target
+		if _cmd $CP $source $target
 		then
 		    installed=true
 		else

@@ -280,7 +280,7 @@ __pmconfigpath(const char *pcp_dir, const char *pcp_conf)
     }
 
     if (access("/etc/pcp.conf", R_OK) == -1) {
-	/* may still be the Mac OS X case with HomeBrew, for example */
+	/* may still be the macOS case with HomeBrew, for example */
 	if (access("/usr/local/etc/pcp.conf", R_OK) == 0)
 	    return strdup("/usr/local/etc/pcp.conf");
     }
@@ -453,7 +453,7 @@ static const char *disabled(void) { return "false"; }
 
 #define STRINGIFY(s)		#s
 #define TO_STRING(s)		STRINGIFY(s)
-static const char *pmapi_version(void) { return TO_STRING(PMAPI_VERSION_3); }
+static const char *pmapi_version(void) { return TO_STRING(PMAPI_VERSION); }
 static const char *pcp_version(void) { return PCP_VERSION; }
 #if defined(HAVE_SECURE_SOCKETS)
 #include <openssl/opensslv.h>

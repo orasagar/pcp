@@ -192,6 +192,9 @@
 /* Define to 1 if you have the <infiniband/umad.h> header file. */
 #undef HAVE_INFINIBAND_UMAD_H
 
+/* Define to 1 if you have the <infiniband/verbs.h> header file. */
+#undef HAVE_INFINIBAND_VERBS_H
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
@@ -474,7 +477,7 @@
 /* Define to 1 if you have the <standards.h> header file. */
 #undef HAVE_STANDARDS_H
 
-/* Static probes (dtrace, systemtap) */
+/* Static probes (USDT) */
 #undef HAVE_STATIC_PROBES
 
 /* timespec type */
@@ -497,9 +500,6 @@
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #undef HAVE_STDLIB_H
-
-/* Define to 1 if you have the `strchrnul' function. */
-#undef HAVE_STRCHRNUL
 
 /* strerror_r return */
 #undef HAVE_STRERROR_R_PTR
@@ -581,9 +581,6 @@
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #undef HAVE_SYS_RESOURCE_H
 
-/* Define to 1 if you have the <sys/sdt.h> header file. */
-#undef HAVE_SYS_SDT_H
-
 /* Define to 1 if you have the <sys/select.h> header file. */
 #undef HAVE_SYS_SELECT_H
 
@@ -625,9 +622,6 @@
 
 /* Define to 1 if you have the <termios.h> header file. */
 #undef HAVE_TERMIOS_H
-
-/* Define to 1 if you have the <termio.h> header file. */
-#undef HAVE_TERMIO_H
 
 /* Define to 1 if you have the `trace_back_stack' function. */
 #undef HAVE_TRACE_BACK_STACK
@@ -707,7 +701,7 @@
 /* Platform is AIX */
 #undef IS_AIX
 
-/* Platform is Darwin (Mac OS X) */
+/* Platform is Darwin (macOS) */
 #undef IS_DARWIN
 
 /* Platform is FreeBSD */
@@ -792,6 +786,9 @@
 #undef HAVE__ETEXT
 #undef HAVE_ETEXT
 
+/* multilib headers */
+#undef HAVE_MULTILIB
+
 /* sizeof suseconds_t ... only ever going to exist on linux-like systems */
 #undef PM_SIZEOF_SUSECONDS_T
 
@@ -801,9 +798,3 @@
 #ifndef PM_SIZEOF_TIME_T
 #error Unknown time_t size
 #endif
-
-/* __pmResult padding */
-#undef PM_PAD_RESULT
-
-/* timespec padding */
-#undef PM_PAD_TIMESPEC

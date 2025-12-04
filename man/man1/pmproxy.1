@@ -314,6 +314,24 @@ section can be used to explicitly enable or disable each of the
 different protocols.
 .PP
 The
+.I [http]
+section provides fine-tuning over HTTP server settings used by
+.BR pmproxy.
+.I chunksize
+sets the chunked transfer encoding buffer size, and defaults to
+the system pagesize.
+Access control HTTP protocol settings can be adjusted using the
+.I Access-Control-Allow-Headers
+and
+.I Access-Control-Max-Age
+options.
+Discussion of these HTTP protocol headers is beyond the scope of
+this document, but suitable default values are described within
+the
+.I pmproxy.conf
+configuration file.
+.PP
+The
 .I [keys]
 section allows connection information for one or more backing
 key-value server processes to be configured (hostnames and ports).
@@ -545,30 +563,18 @@ lf(B) | lf(B)
 lf(B) | lxf(R) .
 Option	Description
 _
-appl0	T{
-.ad l
-client connections and disconnections
-T}
+appl0	client connections and disconnections
 _
 appl1	T{
-.ad l
 desperate logging mode, where a period followed by the PID of
-.B pmproxy
-
-is inserted in
-.IR logfile
-before the last period, so for example pmproxy.log
-becomes pmproxy.<pid>.log
+\fBpmproxy\fR is inserted in the name of \fIRlogfile\fP before the last
+period, so for example pmproxy.log becomes pmproxy.<pid>.log
 T}
 _
 appl2	T{
-.ad l
-log incoming HTTP URLs (this is also enabled by the
-.B http
-debugging option, but the latter has broader scope because it
-turns on debugging in the libraries that
-.B pmproxy
-uses)
+log incoming HTTP URLs (this is also enabled by the \fBhttp\fR debugging
+option, but the latter has broader scope because it turns on debugging
+in the libraries that \fBpmproxy\fR uses)
 T}
 .TE
 .SH SEE ALSO

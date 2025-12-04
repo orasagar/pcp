@@ -37,6 +37,8 @@ _filter()
 	-e 's;/usr/var;/var;g' \
 	-e '/^Roll .*\/NOTICES/d' \
 	-e '/^Start .*\/NOTICES/d' \
+	-e '/^Start \[/s/ 2[0-9:. -]*/ DATESTAMP/' \
+	-e '/^End \[/s/ 2[0-9:. -]*/ DATESTAMP /' \
 	-e "s;$tmp;TMP;g" \
 	-e '/Duplicate/d' \
 	-e '/Roll [^ ]*\/NOTICES /d' \
@@ -100,7 +102,7 @@ _cleanup()
     done
 
     _service pmlogger restart 2>&1 \
-    | _filter_pcp_start \
+    | _filter_pcp_restart \
     _wait_for_pmlogger
     _restore_auto_restart pmlogger
 
@@ -297,7 +299,7 @@ fi
 echo
 echo "pmlogger_daily"
 cd /var/tmp
-$sudo -u $PCP_USER -g $PCP_GROUP sh -c "qatmp=$qatmp $PCP_BINADM_DIR/pmlogger_daily -D -Z -VV -x never -c $tmp/control -l $tmp/log"
+$sudo -u $PCP_USER -g $PCP_GROUP sh -c "qatmp=$qatmp $PCP_BINADM_DIR/pmlogger_daily -P -D -Z -VV -x never -c $tmp/control -l $tmp/log"
 cd $here
 if [ -s $tmp/log ]
 then

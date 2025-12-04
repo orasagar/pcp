@@ -10,6 +10,7 @@ in the source distribution for its full text.
 
 #include "darwin/Platform.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <math.h>
 #include <stdlib.h>
@@ -38,6 +39,7 @@ in the source distribution for its full text.
 #include "DateMeter.h"
 #include "DateTimeMeter.h"
 #include "FileDescriptorMeter.h"
+#include "GPUMeter.h"
 #include "HostnameMeter.h"
 #include "LoadAverageMeter.h"
 #include "Macros.h"
@@ -141,18 +143,82 @@ const MeterClass* const Platform_meterTypes[] = {
    &RightCPUs8Meter_class,
    &ZfsArcMeter_class,
    &ZfsCompressedArcMeter_class,
+   &DiskIORateMeter_class,
+   &DiskIOTimeMeter_class,
    &DiskIOMeter_class,
    &NetworkIOMeter_class,
    &FileDescriptorMeter_class,
+   &GPUMeter_class,
    &BlankMeter_class,
    NULL
 };
+
+static uint64_t Platform_nanosecondsPerMachTickNumer = 1;
+static uint64_t Platform_nanosecondsPerMachTickDenom = 1;
 
 static double Platform_nanosecondsPerSchedulerTick = -1;
 
 static mach_port_t iokit_port; // the mach port used to initiate communication with IOKit
 
+static void Platform_calculateNanosecondsPerMachTick(uint64_t* numer, uint64_t* denom) {
+   // Check if we can determine the timebase used on this system.
+
+#ifdef __x86_64__
+   /* WORKAROUND for `mach_timebase_info` giving incorrect values on M1 under Rosetta 2.
+    *    rdar://FB9546856 http://www.openradar.appspot.com/FB9546856
+    *
+    *    We don't know exactly what feature/attribute of the M1 chip causes this mistake under Rosetta 2.
+    *    Until we have more Apple ARM chips to compare against, the best we can do is special-case
+    *    the "Apple M1" chip specifically when running under Rosetta 2.
+    *
+    *    Rosetta 2 only supports x86-64, so skip this workaround when building for other architectures.
+    */
+
+   bool isRunningUnderRosetta2 = Platform_isRunningTranslated();
+
+   // Kernel versions >= 20.0.0 (macOS 11.0 AKA Big Sur) affected
+   bool isBuggedVersion = 0 <= Platform_CompareKernelVersion((KernelVersion) {20, 0, 0});
+
+   if (isRunningUnderRosetta2 && isBuggedVersion) {
+      // In this case `mach_timebase_info` provides the wrong value, so we hard-code the correct factor,
+      // as determined from `mach_timebase_info` as if the process was running natively.
+      *numer = 125;
+      *denom = 3;
+      return;
+   }
+#endif
+
+#ifdef HAVE_MACH_TIMEBASE_INFO
+   mach_timebase_info_data_t info = { 0 };
+   if (mach_timebase_info(&info) == KERN_SUCCESS) {
+      *numer = info.numer;
+      *denom = info.denom;
+      return;
+   }
+#endif
+
+   // No info on actual timebase found; assume timebase in nanoseconds.
+   *numer = 1;
+   *denom = 1;
+}
+
+// Converts ticks in the Mach "timebase" to nanoseconds.
+// See `mach_timebase_info`, as used to define the `Platform_nanosecondsPerMachTick` constant.
+uint64_t Platform_machTicksToNanoseconds(uint64_t mach_ticks) {
+   uint64_t ticks_quot = mach_ticks / Platform_nanosecondsPerMachTickDenom;
+   uint64_t ticks_rem  = mach_ticks % Platform_nanosecondsPerMachTickDenom;
+
+   uint64_t part1 = ticks_quot * Platform_nanosecondsPerMachTickNumer;
+
+   // When Platform_nanosecondsPerMachTickDenom * Platform_nanosecondsPerMachTickNumer is less than 2^64, ticks_rem *
+   // Platform_nanosecondsPerMachTickNumer will be less than 2^64 as well, i.e. never overflows.
+   uint64_t part2 = (ticks_rem * Platform_nanosecondsPerMachTickNumer) / Platform_nanosecondsPerMachTickDenom;
+
+   return part1 + part2;
+}
+
 bool Platform_init(void) {
+   Platform_calculateNanosecondsPerMachTick(&Platform_nanosecondsPerMachTickNumer, &Platform_nanosecondsPerMachTickDenom);
 
    // Determine the number of scheduler clock ticks per second
    errno = 0;
@@ -273,6 +339,57 @@ double Platform_setCPUValues(Meter* mtr, unsigned int cpu) {
    mtr->values[CPU_METER_TEMPERATURE] = NAN;
 
    return CLAMP(total, 0.0, 100.0);
+}
+
+void Platform_setGPUValues(Meter* mtr, double* totalUsage, unsigned long long* totalGPUTimeDiff) {
+   const Machine* host = mtr->host;
+   const DarwinMachine* dhost = (const DarwinMachine *)host;
+
+   assert(*totalGPUTimeDiff == -1ULL);
+   (void)totalGPUTimeDiff;
+
+   mtr->curItems = 1;
+   mtr->values[0] = NAN;
+
+   if (!dhost->GPUService)
+      return;
+
+   static uint64_t prevMonotonicMs;
+
+   // Ensure there is a small time interval between the creation of the
+   // CF property tables. If this function is called in quick successions
+   // (e.g. for multiple meter instances), we might get "0% utilization"
+   // as a result.
+   if (host->monotonicMs <= prevMonotonicMs) {
+      mtr->values[0] = *totalUsage;
+      return;
+   }
+
+   CFMutableDictionaryRef properties = NULL;
+   kern_return_t ret = IORegistryEntryCreateCFProperties(dhost->GPUService, &properties, kCFAllocatorDefault, kNilOptions);
+   if (ret != KERN_SUCCESS || !properties)
+      return;
+
+   CFDictionaryRef perfStats = CFDictionaryGetValue(properties, CFSTR("PerformanceStatistics"));
+   if (!perfStats)
+      goto cleanup;
+
+   assert(CFGetTypeID(perfStats) == CFDictionaryGetTypeID());
+
+   CFNumberRef deviceUtil = CFDictionaryGetValue(perfStats, CFSTR("Device Utilization %"));
+   if (!deviceUtil)
+      goto cleanup;
+
+   int device = -1;
+   CFNumberGetValue(deviceUtil, kCFNumberIntType, &device);
+   *totalUsage = (double)device;
+
+   prevMonotonicMs = host->monotonicMs;
+
+cleanup:
+   CFRelease(properties);
+
+   mtr->values[0] = *totalUsage;
 }
 
 void Platform_setMemoryValues(Meter* mtr) {
@@ -553,7 +670,8 @@ void Platform_getBattery(double* percent, ACPresence* isOnAC) {
    double cap_max = 0.0;
 
    /* Get the battery */
-   for (int i = 0, len = CFArrayGetCount(list); i < len; ++i) {
+   size_t len = CFArrayGetCount(list);
+   for (size_t i = 0; i < len; ++i) {
       CFDictionaryRef power_source = IOPSGetPowerSourceDescription(power_sources, CFArrayGetValueAtIndex(list, i)); /* GET rule */
 
       if (!power_source)
@@ -608,4 +726,60 @@ void Platform_gettime_monotonic(uint64_t* msec) {
 
 #endif
 
+}
+
+#define OSRELEASEFILE "/System/Library/CoreServices/SystemVersion.plist"
+
+static void Platform_getOSRelease(char* buffer, size_t bufferLen) {
+   const UInt8* osfile = (const UInt8 *)OSRELEASEFILE;
+   const size_t length = sizeof(OSRELEASEFILE) - 1;
+   CFURLRef url = CFURLCreateFromFileSystemRepresentation(NULL, osfile, length, false);
+   if (!url) {
+      xSnprintf(buffer, bufferLen, "No OS Release");
+      return;
+   }
+
+   CFReadStreamRef stream = CFReadStreamCreateWithFile(NULL, url);
+   CFRelease(url);
+    if (!stream || !CFReadStreamOpen(stream)) {
+      if (stream) CFRelease(stream);
+      xSnprintf(buffer, bufferLen, "Bad OS Release");
+      return;
+   }
+
+   CFMutableDataRef data = CFDataCreateMutable(NULL, 0);
+   UInt8 bytes[4096];
+   CFIndex bytesRead;
+   while ((bytesRead = CFReadStreamRead(stream, bytes, sizeof(bytes))) > 0) {
+      CFDataAppendBytes(data, bytes, bytesRead);
+   }
+   CFReadStreamClose(stream);
+   CFRelease(stream);
+   if (bytesRead < 0) {
+      xSnprintf(buffer, bufferLen, "Bad OS Release");
+      CFRelease(data);
+      return;
+   }
+
+   CFPropertyListRef plist = CFPropertyListCreateWithData(NULL, data, kCFPropertyListImmutable, NULL, NULL);
+   CFRelease(data);
+   if (!plist || CFGetTypeID(plist) != CFDictionaryGetTypeID()) {
+      xSnprintf(buffer, bufferLen, "Bad OS Release");
+      if (plist) CFRelease(plist);
+      return;
+   }
+
+   char name[256], version[256];
+   CFDictionaryRef dict = (CFDictionaryRef)plist;
+   CFStringRef productName = CFDictionaryGetValue(dict, CFSTR("ProductName"));
+   CFStringRef productVersion = CFDictionaryGetValue(dict, CFSTR("ProductVersion"));
+   if (CFStringGetCString(productName, name, sizeof(name), kCFStringEncodingUTF8) &&
+       CFStringGetCString(productVersion, version, sizeof(version), kCFStringEncodingUTF8))
+      xSnprintf(buffer, bufferLen, "%s %s", name, version);
+   else
+      xSnprintf(buffer, bufferLen, "Bad OS Release");
+}
+
+void Platform_getRelease(const char** string) {
+   *string = Generic_unameRelease(Platform_getOSRelease);
 }

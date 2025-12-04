@@ -72,7 +72,6 @@ postfix-perl-scripts
 postgresql
 psmisc
 python-devel
-python-jsonpointer
 python-libs
 python-lxml
 python-psycopg2
@@ -92,7 +91,6 @@ setools-console
 smartmontools
 sqlite
 sysstat
-systemtap-sdt-devel
 targetcli
 time
 valgrind

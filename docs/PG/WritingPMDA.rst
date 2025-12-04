@@ -166,7 +166,7 @@ As can be seen from the contents of ``${PCP_PMCDCONF_PATH}``, the DSO version of
 function called **simple_init**. The domain of the simple PMDA is 254, as shown in the column headed **Id**.
 
 .. note:: 
-   For some platforms the DSO file name will not be **pmda_simple.so**. On Mac OS X it is **pmda_simple.dylib** and on Windows it is **pmda_simple.dll**.
+   For some platforms the DSO file name will not be **pmda_simple.so**. On macOS it is **pmda_simple.dylib** and on Windows it is **pmda_simple.dll**.
    
 Daemon PMDA
 ============
@@ -1972,7 +1972,7 @@ need to explicitly remove the PMDA as described in Section 2.8.2, “`Removing a
 
 .. sourcecode:: none
 
- # ${PCP_RC_DIR}/pcp start
+ # ${PCP_RC_DIR}/pmcd start
 
 The files ``${PCP_PMDAS_DIR}/*/Install`` provide a wealth of examples that may be used to construct a new PMDA **Install** script.
 

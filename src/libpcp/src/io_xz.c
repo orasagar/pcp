@@ -175,7 +175,7 @@ check_header_magic(FILE *f)
 {
   char buf[XZ_HEADER_MAGIC_LEN];
 
-  if (fseek(f, 0, SEEK_SET) == -1)
+  if (fseeko(f, 0, SEEK_SET) == -1)
       return 1; /* error */
   if (fread(buf, 1, sizeof(buf), f) != sizeof(buf)) {
       setoserror(-PM_ERR_LOGREC);
@@ -197,7 +197,7 @@ parse_indexes(FILE *f, size_t *nr_streams)
 {
   lzma_ret r;
   off_t index_size;
-  int pos;
+  off_t pos;
   int sts;
   uint8_t footer[LZMA_STREAM_HEADER_SIZE];
   uint8_t header[LZMA_STREAM_HEADER_SIZE];
@@ -212,10 +212,10 @@ parse_indexes(FILE *f, size_t *nr_streams)
   *nr_streams = 0;
 
   /* Check file size is a multiple of 4 bytes. */
-  sts = fseek(f, 0, SEEK_END);
+  sts = fseeko(f, 0, SEEK_END);
   if (sts != 0)
       goto err;
-  pos = ftell(f);
+  pos = ftello(f);
   if (pos == -1)
       goto err;
   if ((pos & 3) != 0) {
@@ -230,8 +230,8 @@ parse_indexes(FILE *f, size_t *nr_streams)
 	  goto err;
       }
 
-      if (fseek(f, -LZMA_STREAM_HEADER_SIZE, SEEK_CUR) != 0) {
-	  xz_debug("%s(%d, ...): fseek: %m", __func__, fileno(f));
+      if (fseeko(f, -LZMA_STREAM_HEADER_SIZE, SEEK_CUR) != 0) {
+	  xz_debug("%s(%d, ...): fseeko: %m", __func__, fileno(f));
 	  setoserror(-PM_ERR_LOGREC);
 	  goto err;
       }
@@ -251,7 +251,8 @@ parse_indexes(FILE *f, size_t *nr_streams)
       pos -= LZMA_STREAM_HEADER_SIZE;
       (*nr_streams)++;
 
-      xz_debug("%s(%d, ...): decode stream footer at pos = %d", __func__, fileno(f), pos);
+      xz_debug("%s(%d, ...): decode stream footer at pos = %lld", __func__, fileno(f),
+	       (long long) pos);
 
       /* Does the stream footer look reasonable? */
       r = lzma_stream_footer_decode(&footer_flags, footer);
@@ -270,11 +271,12 @@ parse_indexes(FILE *f, size_t *nr_streams)
       }
 
       pos -= index_size;
-      xz_debug("%s(%d, ...): decode index at pos = %d", __func__, fileno(f), pos);
+      xz_debug("%s(%d, ...): decode index at pos = %lld", __func__, fileno(f),
+	       (long long) pos);
 
       /* Seek backwards to the index of this stream. */
-      if (fseek(f, pos, SEEK_SET) != 0) {
-	  xz_debug("%s(%d, ...): fseek: %m", __func__, fileno(f));
+      if (fseeko(f, pos, SEEK_SET) != 0) {
+	  xz_debug("%s(%d, ...): fseeko: %m", __func__, fileno(f));
 	  setoserror(-PM_ERR_LOGREC);
 	  goto err;
       }
@@ -315,11 +317,12 @@ parse_indexes(FILE *f, size_t *nr_streams)
 
       pos -= lzma_index_total_size(this_index) + LZMA_STREAM_HEADER_SIZE;
 
-      xz_debug("%s(%d, ...): decode stream header at pos = %d", __func__, fileno(f), pos);
+      xz_debug("%s(%d, ...): decode stream header at pos = %lld", __func__, fileno(f),
+	       (long long) pos);
 
       /* Read and decode the stream header. */
-      if (fseek(f, pos, SEEK_SET) != 0) {
-	  xz_debug("%s(%d, ...): fseek: %m", __func__, fileno(f));
+      if (fseeko(f, pos, SEEK_SET) != 0) {
+	  xz_debug("%s(%d, ...): fseeko: %m", __func__, fileno(f));
 	  setoserror(-PM_ERR_LOGREC);
 	  goto err;
       }
@@ -497,7 +500,7 @@ xz_fdopen(__pmFILE *f, int fd, const char *mode)
 static int
 xz_seek(__pmFILE *f, off_t offset, int whence)
 {
-    xzfile *xz = (xzfile *)f->priv;;
+    xzfile *xz = (xzfile *)f->priv;
     __int64_t new_offset;
 
     switch (whence) {
@@ -535,7 +538,7 @@ xz_lseek(__pmFILE *f, off_t offset, int whence)
 static void
 xz_rewind(__pmFILE *f)
 {
-    xzfile *xz = (xzfile *)f->priv;;
+    xzfile *xz = (xzfile *)f->priv;
 
     /* Don't actually seek to the requested offset now. Just record it. */
     xz->uncompressed_offset = 0;
@@ -547,7 +550,7 @@ xz_rewind(__pmFILE *f)
 static off_t
 xz_tell(__pmFILE *f)
 {
-    xzfile *xz = (xzfile *)f->priv;;
+    xzfile *xz = (xzfile *)f->priv;
     return xz->uncompressed_offset;
 }
 
@@ -797,7 +800,7 @@ reposition(xzfile *xz)
 static int
 xz_getc(__pmFILE *f)
 {
-    xzfile *xz = (xzfile *)f->priv;;
+    xzfile *xz = (xzfile *)f->priv;
     block *blk = reposition(xz);
     int c;
 
@@ -814,7 +817,7 @@ xz_getc(__pmFILE *f)
 static size_t
 xz_read(void *ptr, size_t size, size_t nmemb, __pmFILE *f)
 {
-    xzfile *xz = (xzfile *)f->priv;;
+    xzfile *xz = (xzfile *)f->priv;
     block *blk;
     const char *p;
     size_t n;

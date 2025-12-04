@@ -50,8 +50,14 @@ static pmdaIndom docker_indomtab[NUM_INDOMS];
 #define INDOM(x) (docker_indomtab[x].it_indom)
 #define INDOMTAB_SZ ARRAY_SIZE(docker_indomtab)
 
+static json_metric_desc dockerd_metrics[] = {
+    /* GET /info */
+    { "DockerRootDir", 0, 1, {0}, ""}
+};
+#define dockerd_metrics_size 	ARRAY_SIZE(dockerd_metrics)
+
 static json_metric_desc basic_metrics[] = {
-    /* GET localhost/containers/$ID/json */
+    /* GET /containers/$ID/json */
     { "State/Pid", 0, 1, {0}, ""},
     { "Name", 0, 1, {0}, ""},
     { "State/Running", CONTAINER_FLAG_RUNNING, 1, {0}, ""},
@@ -402,6 +408,9 @@ static pthread_mutex_t	stats_mutex;
 static void refresh_insts(char *);
 static int grab_values(char *, pmInDom, char *, json_metric_desc *, int);
 static int docker_setup(void);
+static void http_client_setup(void);
+static void indomtab_setup(void);
+static void setup(void);
 
 /* General utility routine for checking timestamp differences */
 static int
@@ -425,12 +434,22 @@ stat_time_differs(struct stat *statbuf, struct stat *lastsbuf)
 }
 
 static void
+refresh_dockerd()
+{
+    char    json_query[BUFSIZ];
+    pmInDom indom = PM_INDOM_NULL;
+
+    pmsprintf(json_query, BUFSIZ, "/info");
+    grab_values(json_query, indom, json_query, dockerd_metrics, dockerd_metrics_size);
+}
+
+static void
 refresh_basic(char *path)
 {
     char    json_query[BUFSIZ];
     pmInDom indom = INDOM(CONTAINERS_INDOM);
 
-    pmsprintf(json_query, BUFSIZ, "http://localhost/containers/%s/json", path);
+    pmsprintf(json_query, BUFSIZ, "/containers/%s/json", path);
     grab_values(json_query, indom, path, basic_metrics, basic_metrics_size);
 } 
 
@@ -440,7 +459,7 @@ refresh_version(char *path)
     char    json_query[BUFSIZ];
     pmInDom indom = PM_INDOM_NULL;
 
-    pmsprintf(json_query, BUFSIZ, "http://localhost/version");
+    pmsprintf(json_query, BUFSIZ, "/version");
     grab_values(json_query, indom, path, version_metrics, version_metrics_size);
 }
 
@@ -451,7 +470,7 @@ refresh_stats(char *path)
     pmInDom indom = INDOM(CONTAINERS_STATS_CACHE_INDOM);
 
     /* the ?stream=0 bit is set so as to not continuously request stats */
-    pmsprintf(json_query, BUFSIZ, "http://localhost/containers/%s/stats?stream=0", path);
+    pmsprintf(json_query, BUFSIZ, "/containers/%s/stats?stream=0", path);
     grab_values(json_query, indom, path, stats_metrics, stats_metrics_size);
 }
 
@@ -465,6 +484,7 @@ docker_background_loop(void *loop)
 	local_freq = thread_freq;
 	pthread_mutex_unlock(&refresh_mutex);
 	sleep(local_freq);
+	docker_setup();
 	refresh_insts(resulting_path);
 	if (!loop)
 	    exit(0);
@@ -472,7 +492,7 @@ docker_background_loop(void *loop)
 }
 
 static int
-docker_store(pmResult *result, pmdaExt *pmda)
+docker_store(pmdaResult *result, pmdaExt *pmda)
 {
     int i;
 
@@ -638,7 +658,7 @@ notready(void)
 }
 
 static int
-docker_fetch(int numpmid, pmID pmidlist[], pmResult **resp, pmdaExt *pmda)
+docker_fetch(int numpmid, pmID pmidlist[], pmdaResult **resp, pmdaExt *pmda)
 {
     int local_ready;
 
@@ -669,7 +689,7 @@ docker_instance(pmInDom id, int i, char *name, pmInResult **in, pmdaExt *pmda)
 }
 
 typedef struct {
-    char	json[BUFSIZ];
+    char	*json;
     int		json_len;
     int		off;
 } http_data;
@@ -696,20 +716,24 @@ grab_json(char *buffer, int buffer_size, void *data)
 }
 
 static int
-grab_values(char *json_query, pmInDom indom, char *path, json_metric_desc *json, int json_size)
+grab_values(char *query, pmInDom indom, char *path, json_metric_desc *json, int json_size)
 {
     int			sts, i;
+    static char		*buffer;
+    static size_t	length;
     http_data		local_data;
     json_metric_desc	*local_metrics;
 
-    if ((sts = pmhttpClientFetch(http_client, "unix://var/run/docker.sock",
-			&local_data.json[0], sizeof(local_data.json),
-			json_query, strlen(json_query))) < 0) {
+    sts = pmhttpClientGet(http_client, "unix://var/run/docker.sock",
+				query, &buffer, &length, NULL, NULL);
+    if (sts < 0 || length < 1) {
 	if (pmDebugOptions.appl1)
 	    pmNotifyErr(LOG_ERR, "HTTP fetch (stats) failed\n");
 	return 0; // failed
     }
-    local_data.json_len = strlen(local_data.json);
+    local_data.json = buffer;
+    local_data.json_len = length;
+    local_data.json[length-1] = '\0';
     local_data.off = 0;
 
     pthread_mutex_lock(&docker_mutex);
@@ -846,13 +870,50 @@ static int
 docker_setup(void)
 {
     static const char *docker_default = "/var/lib/docker";
-    const char        *docker = getenv("PCP_DOCKER_DIR");
+    const char        *docker_env = getenv("PCP_DOCKER_DIR");
+    const char        *docker_api;
+    const char        *docker;
 
-    if (!docker)
-	docker = docker_default;
+    refresh_dockerd();
+    docker_api = dockerd_metrics[0].values.cp;
+
+    if (docker_api) {
+        docker = docker_api;
+    } else {
+        if (!docker_env) {
+            docker = docker_default;
+        } else {
+            docker = docker_env;
+        }
+    }
     pmsprintf(resulting_path, sizeof(mypath), "%s/containers", docker);
     resulting_path[sizeof(resulting_path)-1] = '\0';
     return 0;
+}
+
+static void
+http_client_setup(void)
+{
+    if ((http_client = pmhttpNewClient()) == NULL) {
+        pmNotifyErr(LOG_ERR, "HTTP client creation failed\n");
+        exit(1);
+    }
+}
+
+static void
+indomtab_setup(void)
+{
+    docker_indomtab[CONTAINERS_INDOM].it_indom = CONTAINERS_INDOM;
+    docker_indomtab[CONTAINERS_STATS_INDOM].it_indom = CONTAINERS_STATS_INDOM;
+    docker_indomtab[CONTAINERS_STATS_CACHE_INDOM].it_indom = CONTAINERS_STATS_CACHE_INDOM;
+}
+
+static void
+setup(void)
+{
+    http_client_setup();
+    docker_setup();
+    indomtab_setup();
 }
 
 /*
@@ -875,11 +936,8 @@ docker_init(pmdaInterface *dp)
 
     if (dp->status != 0)
 	return;
-    
-    if ((http_client = pmhttpNewClient()) == NULL) {
-	pmNotifyErr(LOG_ERR, "HTTP client creation failed\n");
-	exit(1);
-    }
+
+    setup();
 
     pthread_mutex_init(&docker_mutex, NULL);
     pthread_mutex_init(&refresh_mutex, NULL);
@@ -888,14 +946,10 @@ docker_init(pmdaInterface *dp)
     dp->version.any.instance = docker_instance;
     dp->version.any.store = docker_store;
     pmdaSetFetchCallBack(dp, docker_fetchCallBack);
-    docker_indomtab[CONTAINERS_INDOM].it_indom = CONTAINERS_INDOM;
-    docker_indomtab[CONTAINERS_STATS_INDOM].it_indom = CONTAINERS_STATS_INDOM;
-    docker_indomtab[CONTAINERS_STATS_CACHE_INDOM].it_indom = CONTAINERS_STATS_CACHE_INDOM;
     pmdaInit(dp, docker_indomtab, INDOMTAB_SZ, metrictab, METRICTAB_SZ);
     for (i = 0; i < NUM_INDOMS; i++)
 	pmdaCacheOp(INDOM(i), PMDA_CACHE_CULL);
 	
-    docker_setup();
     sts = pthread_create(&docker_query_thread, NULL, docker_background_loop, loop);
     if (sts != 0) {
 	pmNotifyErr(LOG_DEBUG, "docker_init: Cannot spawn new thread: %d\n", sts);
@@ -958,7 +1012,7 @@ main(int argc, char **argv)
     }
     
     if (qaflag) {
-	docker_setup();
+	setup();
 	docker_background_loop(0);
 	exit(0);
     }

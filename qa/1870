@@ -1,0 +1,58 @@
+#!/bin/sh
+# PCP QA Test No. 1870
+# Exercise GuideLLM JSON converter script (guidellm2pcp).
+#
+# Copyright (c) 2025 Red Hat.  All Rights Reserved.
+#
+
+seq=`basename $0`
+echo "QA output created by $seq"
+
+# get standard environment, filters and checks
+. ./common.product
+. ./common.filter
+. ./common.check
+
+test -x $PCP_BIN_DIR/guidellm2pcp || _notrun No guidellm2pcp script
+
+_cleanup()
+{
+    cd $here
+    $sudo rm -rf $tmp $tmp.*
+}
+
+status=0	# success is the default!
+trap "_cleanup; exit \$status" 0 1 2 3 15
+
+_filter_pmval()
+{
+    sed \
+	-e "s@$tmp@TMP@g" \
+    # end
+}
+
+_filter_pminfo()
+{
+    $here/src/sortinst | sed -e 's/inst \[.* or/inst [N or/g'
+}
+
+# real QA test starts here
+files=`ls -1 guidellm/*.json | LC_COLLATE=POSIX sort`
+
+for json in $files
+do
+    echo "== guidellm2pcp $json"
+    guidellm2pcp -a $tmp.archive $json
+    pminfo -z -f -a $tmp.archive guidellm | _filter_pminfo
+    for inst in `pmprobe -I -a $tmp.archive guidellm.duration | \
+	    $PCP_AWK_PROG '{ for (i=3; i<=NF; i++) print $i }' | \
+	    LC_COLLATE=POSIX sort`
+    do
+        pmval -z -t 60sec -a $tmp.archive -i $inst guidellm.duration | \
+		_filter_pmval
+    done
+    rm -f $tmp.archive*
+done
+
+# success, all done
+exit

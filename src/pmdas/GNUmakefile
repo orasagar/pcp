@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2013-2020 Red Hat.
+# Copyright (c) 2013-2020,2025 Red Hat.
 # Copyright (c) 2000,2003,2004 Silicon Graphics, Inc.  All Rights Reserved.
 #
 # This program is free software; you can redistribute it and/or modify it
@@ -19,7 +19,8 @@ include $(TOPDIR)/src/include/builddefs
 
 CPMDAS = root pmcd \
 	linux_proc linux_xfs linux_zfs linux \
-	darwin freebsd netbsd solaris aix windows \
+	darwin_proc darwin freebsd netbsd aix \
+	solaris windows \
 	sample simple trivial sendmail mailq txmon \
 	apache cisco trace shping mounts weblog \
 	mmv lmsensors process roomtemp summary etw \
@@ -37,14 +38,20 @@ PLPMDAS = bonding netfilter zimbra postgresql \
 	bind2 redis nutcracker
 
 PYPMDAS = bcc gluster zswap unbound mic haproxy \
-	json libvirt lio openmetrics elasticsearch \
-	bpftrace mssql netcheck rabbitmq openvswitch \
-	nfsclient mongodb uwsgi rocestat
+	libvirt lio openmetrics opentelemetry \
+	elasticsearch bpftrace mssql netcheck \
+	rabbitmq openvswitch nfsclient mongodb \
+	uwsgi rocestat hdb
 
 SUBDIRS = $(CPMDAS) $(PLPMDAS) $(PYPMDAS)
 LDIRT = pmcd.conf
 
+ifneq ("$(wildcard $(TOPDIR)/src/include/pcp/config.h)","")
 HAVE_UNIX_DOMAIN_SOCKETS = $(shell grep 'define HAVE_STRUCT_SOCKADDR_UN' $(TOPDIR)/src/include/pcp/config.h >/dev/null && echo yes)
+else
+    # after make clean in src/include/pcp, config.h is gone ... punt
+    HAVE_UNIX_DOMAIN_SOCKETS = no
+endif
 
 default :: default_pcp
 

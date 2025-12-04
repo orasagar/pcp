@@ -286,6 +286,7 @@ _filter_optional_pmdas()
 	-e '/pmdaelasticsearch/d' \
 	-e '/pmda_environ/d' \
 	-e '/pmdaespping/d' \
+	-e '/pmdafarm/d' \
 	-e '/pmdagfs2/d' \
 	-e '/pmdagluster/d' \
 	-e '/pmdahacluster/d' \
@@ -296,7 +297,6 @@ _filter_optional_pmdas()
 	-e '/pmdainfmx7/d' \
 	-e '/pmdainfmxping/d' \
 	-e '/pmdajbd2/d' \
-	-e '/pmdajson/d' \
 	-e '/pmdajstat/d' \
 	-e '/pmdakvm/d' \
 	-e '/pmdalab/d' \
@@ -326,6 +326,7 @@ _filter_optional_pmdas()
 	-e '/pmdanutcracker/d' \
 	-e '/pmdanvidia/d' \
 	-e '/pmdaopenmetrics/d' \
+	-e '/pmdaopentelemetry/d' \
 	-e '/pmdaoracle/d' \
 	-e '/pmdaoraping/d' \
 	-e '/pmdaoverhead/d' \
@@ -421,6 +422,7 @@ _filter_optional_pmda_instances()
         -e '/inst \[153 or "zfs"]/d' \
         -e '/inst \[156 or "denki"]/d' \
         -e '/inst \[158 or "overhead"]/d' \
+        -e '/inst \[160 or "farm"]/d' \
 	-e '/inst \[142 or "lio"]/d' \
 	-e '/inst \[144 or "openmetrics"]/d' \
 	-e '/inst \[149 or "bcc"]/d' \
@@ -428,6 +430,8 @@ _filter_optional_pmda_instances()
 	-e '/inst \[154 or "sockets"]/d' \
 	-e '/inst \[157 or "bpf"]/d' \
 	-e '/inst \[161 or "uwsgi"]/d' \
+        -e '/inst \[163 or "rocestat"]/d' \
+	-e '/inst \[164 or "opentelemetry"]/d' \
 	-e '/inst \[250 or "trivial"]/d' \
     # end
 }
@@ -456,9 +460,10 @@ _filter_top_pmns()
 	-e '/^    datatape /d' \
 	-e '/^    dbping /d' \
 	-e '/^    dmcache /d' \
+	-e '/^    dmcrypt /d' \
+	-e '/^    dmmultipath /d' \
 	-e '/^    dmstats /d' \
 	-e '/^    dmthin /d' \
-	-e '/^    dm /d' \
 	-e '/^    dmf /d' \
 	-e '/^    ds389 /d' \
 	-e '/^    elasticsearch /d' \
@@ -499,6 +504,7 @@ _filter_top_pmns()
 	-e '/^    nutcracker /d' \
 	-e '/^    nvidia /d' \
 	-e '/^    openmetrics /d' \
+	-e '/^    opentelemetry /d' \
 	-e '/^    oracle /d' \
 	-e '/^    oraping /d' \
 	-e '/^    pdns /d' \
@@ -548,7 +554,6 @@ _filter_dumpresult()
 {
     sed \
 	-e '/pmResult/s/ .* numpmid/ ... numpmid/' \
-	-e '/pmHighResResult/s/ .* numpmid/ ... numpmid/' \
 	-e '/[0-9][0-9]:[0-9][0-9]:[0-9][0-9]/s/[^ ]*/TIMESTAMP/' \
 	-e '/value /{
 s/\(value.*\) 0x[0-9a-f][0-9a-f]*/\1 HEXNUMBER/
@@ -615,7 +620,6 @@ _filter_pcp_start()
 	-e "s;$PCP_LOG_DIR/pmcd.log;\$PCP_LOG_DIR/pmcd.log;" \
 	-e "s;$PCP_RC_DIR/pmcd;\$PCP_RC_DIR/pmcd;" \
 	-e "s;$PCP_RC_DIR/pmlogger;\$PCP_RC_DIR/pmlogger;" \
-	-e "s;$PCP_RC_DIR/pcp;\$PCP_RC_DIR/pmcd;" \
 	-e '/$PCP_RC_DIR\/pmcd/{
 s/ PMCD / pmcd /
 }' \
@@ -625,6 +629,7 @@ s/ PMCD / pmcd /
 	-e "s;$PCP_PMLOGGERCONTROL_PATH.d/local;\$PCP_PMLOGGERCONTROL_PATH;" \
 	-e "s;$PCP_VAR_DIR/;\$PCP_VAR_DIR/;" \
 	-e "s;$PCP_SYSCONF_DIR/;\$PCP_SYSCONF_DIR/;" \
+	-e "s;$PCP_SERVICES_DIR/;\$PCP_SERVICES_DIR/;" \
 	-e "s;/usr/etc/pmcd;\$PCP_BINADM_DIR/pmcd;" \
 	-e '/Warning: Forcing PMCD to terminate!/s/PMCD/pmcd/' \
         -e '/^Starting PCP$/d' \
@@ -677,6 +682,11 @@ _filter_pcp_stop()
 	-e "s;$PCP_RC_DIR/pmcd;\$PCP_RC_DIR/pmcd;" \
 	-e "s;$PCP_RC_DIR/pmlogger;\$PCP_RC_DIR/pmlogger;" \
     | _filter_init_distro
+}
+
+_filter_pcp_restart()
+{
+    _filter_pcp_stop | _filter_pcp_start
 }
 
 _filterall_pcp_start()
@@ -926,7 +936,7 @@ $1 == "inst" && $2 ~ /^\[/ {
 }
 
 # for src/torture_api, filter out lines like:
-#     hostname             <s = 1>
+#     metricname             <s = 1>
 # for the top-level PMNS nodes that come from optionaly PMDAs
 # or are not present on every platform
 #
@@ -952,9 +962,11 @@ _filter_torture_api()
 	-e '/^    cms /d' \
 	-e '/^    cxfs /d' \
 	-e '/^    denki /d' \
+	-e '/^    dm /d' \
 	-e '/^    ds389 /d' \
 	-e '/^    dynamic /d' \
 	-e '/^    engr /d' \
+	-e '/^    farm /d' \
 	-e '/^    fchost /d' \
 	-e '/^    feature /d' \
 	-e '/^    ha_cluster /d' \
@@ -1181,4 +1193,42 @@ _filter_compiler_babble()
 _cull_dup_lines()
 {
     $PCP_AWK_PROG 'NR == 1 || last != $0 { print; last = $0 }'
+}
+
+# strip ls -l output to the essentials ...
+# drwxrwxr-x 2 pcpqa pcpqa 4096 Jan 16 15:09 TMP/run
+# ^^^^^^^^^^   ^^^^^ ^^^^^ ^^^^              ^^^^^^^
+#           . (maybe)
+# optionally these flags strip other fields:
+#   -u user
+#   -g group
+#   -s size
+#
+_filter_ls()
+{
+    _fields='$1,$3,$4,$5,$9'
+    while [ $# -ne 0 ]
+    do
+	case "$1"
+	in
+	    -u)
+		_fields=`echo "$_fields" | sed -e 's/,\$3//'`
+		;;
+	    -g)
+		_fields=`echo "$_fields" | sed -e 's/,\$4//'`
+		;;
+	    -s)
+		_fields=`echo "$_fields" | sed -e 's/,\$5//'`
+		;;
+	    *)
+		echo >&2 "_filter_ls: botch: arg $1 not -u or -g"
+		return
+		;;
+	esac
+	shift
+    done
+    $PCP_AWK_PROG '
+NF >= 9 && $1 ~ /^.[r-][w-][x-][r-][w-][x-][r-][w-][x-]/ { print '"$_fields"'; next }
+		{ print }' \
+    | sed -e 's/^\(.[r-][w-][x-][r-][w-][x-][r-][w-][x-]\)\./\1/'
 }

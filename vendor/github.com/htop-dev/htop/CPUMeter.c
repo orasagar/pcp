@@ -241,9 +241,10 @@ static void CPUMeterCommonInit(Meter* this) {
 
    CPUMeterData* data = this->meterData;
    if (!data) {
-      data = this->meterData = xMalloc(sizeof(CPUMeterData));
+      data = xCalloc(1, sizeof(CPUMeterData));
       data->cpus = this->host->existingCPUs;
       data->meters = count ? xCalloc(count, sizeof(Meter*)) : NULL;
+      this->meterData = data;
    }
 
    Meter** meters = data->meters;
@@ -305,8 +306,8 @@ static void CPUMeterCommonDraw(Meter* this, int x, int y, int w, int ncol) {
    Meter** meters = data->meters;
    int start, count;
    AllCPUsMeter_getRange(this, &start, &count);
-   int colwidth = (w - ncol) / ncol + 1;
-   int diff = (w - (colwidth * ncol));
+   int colwidth = w / ncol;
+   int diff = w % ncol;
    int nrows = (count + ncol - 1) / ncol;
    for (int i = 0; i < count; i++) {
       int d = (i / nrows) > diff ? diff : (i / nrows); // dynamic spacer
@@ -352,6 +353,7 @@ const MeterClass CPUMeter_class = {
    .defaultMode = BAR_METERMODE,
    .supportedModes = METERMODE_DEFAULT_SUPPORTED,
    .maxItems = CPU_METER_ITEMCOUNT,
+   .isPercentChart = true,
    .total = 100.0,
    .attributes = CPUMeter_attributes,
    .name = "CPU",

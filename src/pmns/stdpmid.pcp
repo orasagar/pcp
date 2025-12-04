@@ -67,7 +67,7 @@ CPUSET		84
 FREEBSD		85
 RPCBIND		86
 ETW		87
-### FREE SLOTS ###
+HDB		88
 MEMCACHE	89
 VMWARE		90
 IB		91
@@ -143,7 +143,8 @@ FARM		160 	/* Seagate vendor specific Field Accessible Reliability Metrics log *
 UWSGI		161
 AMDGPU		162
 ROCESTAT	163
-### FREE SLOTS 164..230 ###
+OPENTELEMETRY	164
+### FREE SLOTS 165..230 ###
 # start QA section
 ### FREE SLOTS 231..240 ###
 SCHIZO		241
@@ -161,7 +162,7 @@ QA_TEST_PERL	252
 SIMPLE		253
 MEMORY_PYTHON	254
 # end QA section
-### MORE FREE SLOTS 256..510 ###
+### MORE FREE SLOTS 255..510 ###
 #
 # 511 is REALLY reserved ... see DYNAMIC_PMID in libpcp.h
 #

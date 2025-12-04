@@ -14,6 +14,7 @@
  * Debug flags:
  * appl0	group file operations
  * appl1	probe operations
+ * appl2	dump group data at each stage
  */
 #include "pmlogconf.h"
 
@@ -125,7 +126,7 @@ group_create_pmlogger(const char *state, unsigned int line)
     size_t		length;
     group_t		*group;
     const char		*begin, *end;
-    struct timeval	interval;
+    struct timespec	interval;
     enum { TAG, STATE, DELTA } parse;
 
     if ((group = calloc(1, sizeof(group_t))) == NULL) {
@@ -194,7 +195,7 @@ group_create_pmlogger(const char *state, unsigned int line)
 	    if (strcmp(group->saved_delta, "once") == 0 ||
 		strcmp(group->saved_delta, "default") == 0)
 		break;
-	    if (pmParseInterval(group->saved_delta, &interval, &errmsg) < 0) {
+	    if (pmParseHighResInterval(group->saved_delta, &interval, &errmsg) < 0) {
 		fprintf(stderr, "%s: ignoring %s logging interval \"%s\" "
 				"on line %u of %s: %s\n", pmGetProgname(),
 			group->tag, group->saved_delta, line, config, errmsg);
@@ -349,6 +350,90 @@ cullv1(const_dirent *dep)
     return strcmp("v1.0", dep->d_name);
 }
 
+static char *
+probestr(int style)
+{
+    if (style == 0) return "none";
+    else if (style == PROBE_EXISTS) return "exists";
+    else if (style == PROBE_VALUES) return "values";
+    else if (style == PROBE_EQ) return "==";
+    else if (style == PROBE_NEQ) return "!=";
+    else if (style == PROBE_GT) return ">";
+    else if (style == PROBE_GE) return ">=";
+    else if (style == PROBE_LT) return "<";
+    else if (style == PROBE_LE) return "<=";
+    else if (style == PROBE_RE) return "~";
+    else if (style == PROBE_NRE) return "!~";
+    else return "???";
+}
+
+static char *
+statestr(int state)
+{
+    if (state == 0) return "none";
+    else if (state == STATE_AVAILABLE) return "available";
+    else if (state == STATE_INCLUDE) return "include";
+    else if (state == STATE_EXCLUDE) return "exclude";
+    else return "???";
+}
+
+static void
+dump_group(struct group *gp, char *from)
+{
+    char	c = ':';
+    fprintf(stderr, "Dump group tag=%s [from %s]\n", gp->tag, from);
+    if (gp->ident != NULL)
+	fprintf(stderr, "  ident=%s\n", gp->ident);
+    if (gp->delta != NULL)
+	fprintf(stderr, "  delta=%s\n", gp->delta);
+    if (gp->metric != NULL)
+	fprintf(stderr, "  metric=%s PMID=%s (for probing)\n", gp->metric, pmIDStr(gp->pmid));
+    fprintf(stderr, "  flags");
+    if (gp->valid) {
+	fprintf(stderr, "%c parsed", c);
+	c = ',';
+    }
+    if (gp->success) {
+	fprintf(stderr, "%c probed", c);
+	c = ',';
+    }
+    fprintf(stderr, "%c log_%s", c, loggingstr(gp->logging));
+    c = ',';
+    if (gp->pmlogger) fprintf(stderr, ", in_pmlogger_config");
+    if (gp->pmlogconf) fprintf(stderr, ", in_pmlogconf_config");
+    if (gp->pmrep) fprintf(stderr, ", in_pmrep_config");
+    fputc('\n', stderr);
+    if (gp->force != NULL)
+	fprintf(stderr, "  force=%s\n", gp->force);
+    if (gp->probe != NULL) {
+	fprintf(stderr, "  probe=%s", gp->probe);
+	if (gp->value != NULL)
+	fprintf(stderr, " condition=%s", gp->value);
+	fputc('\n', stderr);
+    }
+    if (gp->probe_style + gp->true_state + gp->false_state != 0) {
+	fprintf(stderr, "  parse state:");
+	fprintf(stderr, " probe=%s", probestr(gp->probe_style));
+	fprintf(stderr, " true=%s", statestr(gp->true_state));
+	fprintf(stderr, " false=%s", statestr(gp->false_state));
+	fputc('\n', stderr);
+    }
+    fprintf(stderr, "  metrics: [%d]", gp->nmetrics);
+    if (gp->nmetrics > 0) {
+	fprintf(stderr, " %s", gp->metrics[0]);
+	if (gp->nmetrics > 1) {
+	    fprintf(stderr, "...%s", gp->metrics[gp->nmetrics-1]);
+	}
+    }
+    fputc('\n', stderr);
+    if (gp->saved_delta != NULL)
+	fprintf(stderr, "  saved_delta=%s\n", gp->saved_delta);
+    if (gp->saved_state != 0)
+	fprintf(stderr, "  saved_state=%s\n", statestr(gp->saved_state));
+    if (gp->probe_state != 0)
+	fprintf(stderr, "  probe_state=%s\n", statestr(gp->probe_state));
+}
+
 int
 parse_groupfile(FILE *file, const char *tag)
 {
@@ -384,17 +469,93 @@ parse_groupfile(FILE *file, const char *tag)
 	    group.ident = append(group.ident, chop(p), ' ');
 	}
 	else if (istoken(p, "probe", sizeof("probe")-1)) {
+	    if (group.probe != NULL) {
+		fprintf(stderr, "%s: Warning: %s/%s "
+			"repeated \"probe\" control lines ... \"%s\" will be ignored\n",
+		pmGetProgname(), groupdir, group.tag, group.probe);
+		free(group.probe);
+	    }
 	    p = trim(p + sizeof("probe"));
 	    group.probe = copy_string(p);
+	    if (group.metric != NULL)
+		free(group.metric);
 	    group.metric = copy_token(p);
 	}
 	else if (istoken(p, "force", sizeof("force")-1)) {
+	    if (group.force != NULL) {
+		fprintf(stderr, "%s: Warning: %s/%s "
+			"repeated \"force\" control lines ... \"%s\" will be ignored\n",
+		pmGetProgname(), groupdir, group.tag, group.force);
+		free(group.force);
+	    }
 	    p = trim(p + sizeof("force"));
 	    group.force = copy_string(p);
 	}
 	else if (istoken(p, "delta", sizeof("delta")-1)) {
+	    if (group.delta != NULL) {
+		fprintf(stderr, "%s: Warning: %s/%s "
+			"repeated \"delta\" control lines ... \"%s\" will be ignored\n",
+		pmGetProgname(), groupdir, group.tag, group.delta);
+		free(group.delta);
+	    }
 	    p = trim(p + sizeof("delta"));
 	    group.delta = copy_string(p);
+	}
+	else if (istoken(p, "define", sizeof("define")-1)) {
+	    /*
+	     * derived metric definition ...
+	     * define name = expr
+	     */
+	    char	*name;
+	    char	*expr;
+	    int		sts;
+	    char	*errmsg;
+	    name = p = trim(p + sizeof("define"));
+	    if (name[0] == '\0') {
+		fprintf(stderr, "%s: Error: %s/%s "
+			"define missing <name>\n",
+			pmGetProgname(), groupdir, group.tag);
+		goto bad_define;
+	    }
+	    p++;
+	    while (*p != '\0' && !isspace((int)*p))
+		p++;
+	    *p = '\0';
+	    p = trim(p + 1);
+	    /* found name, expect = now */
+	    if (*p == '=') {
+		p = trim(p + 1);
+		expr = chop(p);
+		if (expr[0] != '\0') {
+		    if ((sts = pmRegisterDerivedMetric(name, expr, &errmsg)) < 0) {
+			fprintf(stderr, "%s: Error: %s/%s "
+				"define pmRegisterDerivedMetric: failed: %s\n",
+				pmGetProgname(), groupdir, group.tag, errmsg);
+			free(errmsg);
+			goto bad_define;
+		    }
+		}
+		else {
+		    fprintf(stderr, "%s: Error: %s/%s "
+			    "define missing <expr> after =\n",
+			    pmGetProgname(), groupdir, group.tag);
+		    goto bad_define;
+		}
+	    }
+	    else {
+		fprintf(stderr, "%s: Error: %s/%s "
+			"define missing = after <name>\n",
+			pmGetProgname(), groupdir, group.tag);
+bad_define:
+		free(group.tag);
+		if (group.ident != NULL) free(group.ident);
+		if (group.probe != NULL) free(group.probe);
+		if (group.metric != NULL) free(group.metric);
+		if (group.force != NULL) free(group.force);
+		if (group.delta != NULL) free(group.delta);
+		group.valid = 0;
+		return -EINVAL;
+	    }
 	}
 	else {		/* a metric specification for this logging group */
 	    group_metric(&group, p);
@@ -408,6 +569,9 @@ parse_groupfile(FILE *file, const char *tag)
     if (pmDebugOptions.appl0)
 	fprintf(stderr, "Parsed group with tag %s valid=%u metric=%s\n",
 			tag, group.valid, group.metric? group.metric : "");
+    if (pmDebugOptions.appl2)
+	dump_group(&group, "parse_groupfile");
+
     return 0;
 }
 
@@ -502,6 +666,15 @@ fetch_groups(void)
 	    continue;
 	names[n++] = (const char *)groups[i].metric;
     }
+    if (n == 0) {
+	/*
+	 * no metrics in guards for any group, nothing to be done
+	 */
+	free(descs);
+	free(names);
+	free(pmids);
+	return 0;
+    }
     count = n;
 
     if ((sts = pmLookupName(count, names, pmids)) < 0) {
@@ -580,7 +753,7 @@ parse_group(group_t *group)
     if (group->force && group->metric) {
 	fprintf(stderr, "%s: Warning: %s/%s "
 			"\"probe\" and \"force\" control lines ... "
-			"ignoring \"force\\n",
+			"ignoring \"force\"\n",
 		pmGetProgname(), groupdir, group->tag);
     }
     if (!group->force && !group->metric) {
@@ -735,6 +908,10 @@ parse_group(group_t *group)
 	    return -EINVAL;
 	}
     }
+
+    if (pmDebugOptions.appl2)
+	dump_group(group, "parse_group");
+
     return 0;
 }
 
@@ -985,6 +1162,10 @@ evaluate_group(group_t *group)
     default:
 	break;
     }
+
+    if (pmDebugOptions.appl2)
+	dump_group(group, "evaluate_group");
+
     return group->pmid != PM_ID_NULL;
 }
 
@@ -1356,14 +1537,20 @@ char *
 update_groups(FILE *tempfile, const char *pattern)
 {
     group_t		*group;
-    struct timeval	interval;
+    struct timespec	interval;
     static char		*answer;
     static char		buffer[128]; /* returned 'answer' points into this */
     char		*state = NULL, *errmsg, *p;
     unsigned int	i, m, count;
+    unsigned int	back = 0;
+    
 
     /* iterate over the groups array. */
     for (i = count = 0; i < ngroups; count = 0, i++) {
+	if (back) {
+	    i--;
+	    back = 0;
+	}
 	group = &groups[i];
 	if (!group->valid || group->saved_state == STATE_EXCLUDE)
 	    continue;
@@ -1409,7 +1596,7 @@ y         log this group\n\
 	    printf("Metrics in this group (%s):\n", group->tag);
 	    for (m = 0; m < group->nmetrics; m++)
 		printf("    %s\n", group->metrics[m]);
-	    i--;	/* stay on this group */
+	    back = 1;	/* stay on this group */
 	    continue;
 
 	case 'q':
@@ -1465,7 +1652,7 @@ y         log this group\n\
 			update_delta(group, answer);
 			break;
 		    }
-		    if (pmParseInterval(answer, &interval, &errmsg) >= 0) {
+		    if (pmParseHighResInterval(answer, &interval, &errmsg) >= 0) {
 			update_delta(group, answer);
 			break;
 		    }
@@ -1532,7 +1719,7 @@ update_pmlogger_tempfile(FILE *tempfile)
 	if (ftruncate(fileno(tempfile), 0L) < 0)
 	    fprintf(stderr, "%s: cannot truncate temporary file: %s\n",
 			pmGetProgname(), osstrerror());
-	if (fseek(tempfile, 0L, SEEK_SET) < 0)
+	if (fseeko(tempfile, 0L, SEEK_SET) < 0)
 	    fprintf(stderr, "%s: cannot fseek to temporary file start: %s\n",
 			pmGetProgname(), osstrerror());
 	prompt = 0;
@@ -1572,7 +1759,7 @@ copy_and_parse_tempfile(FILE *file, FILE *tempfile)
      * existing group state as we go, and stashing the immutable trailer
      * as well.
      */
-    fseek(file, 0L, SEEK_SET);
+    fseeko(file, 0L, SEEK_SET);
     while (fgets(bytes, sizeof(bytes), file) != NULL) {
 	fputs(bytes, tempfile);	/* copy into temporary configuration file */
 	line++;
@@ -1705,7 +1892,7 @@ pmapi_setup(pmOptions *options)
     int		sts;
 
     /* prepare the environment - no derived metrics, POSIX sorting */
-    unsetenv("PCP_DERIVED_CONFIG");
+    setenv("PCP_DERIVED_CONFIG", "", 1);
     setenv("LC_COLLATE", "POSIX", 1);
 
     /* setup connection to pmcd in order to query metric states */

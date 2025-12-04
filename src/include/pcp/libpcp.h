@@ -313,7 +313,7 @@ typedef struct __pmResult {
 #ifdef PM_PAD_RESULT
     __int32_t		pad;		/* move numpmid down a bit so numpmid */
     					/* offset is >= offset for pmResult */
-					/* and pmHighResResult */
+					/* and pmResult_v2 */
 #endif
     int                 numpmid;	/* number of PMIDs */
     pmValueSet		*vset[1];	/* set of value sets, one per PMID */
@@ -507,7 +507,7 @@ PCP_CALL extern char *	     __pmGetNameInfo(__pmSockAddr *);
 PCP_CALL extern __pmSockAddr *__pmStringToSockAddr(const char *);
 PCP_CALL extern __pmSockAddr *__pmLoopBackAddress(int);
 PCP_CALL extern __pmSockAddr *__pmHostEntGetSockAddr(const __pmHostEnt *, void **);
-PCP_CALL extern __pmHostEnt * __pmGetAddrInfo(const char *);
+PCP_CALL extern __pmHostEnt * __pmGetAddrInfo(const char *, int *);
 PCP_CALL extern void	     __pmHostEntFree(__pmHostEnt *);
 PCP_CALL extern char *	     __pmHostEntGetName(__pmHostEnt *);
 
@@ -534,7 +534,7 @@ typedef enum {
 PCP_CALL extern void __pmHashInit(__pmHashCtl *);
 PCP_CALL extern int __pmHashPreAlloc(int, __pmHashCtl *);
 typedef __pmHashWalkState(*__pmHashWalkCallback)(const __pmHashNode *, void *);
-PCP_CALL extern void __pmHashWalkCB(__pmHashWalkCallback, void *, const __pmHashCtl *);
+PCP_CALL extern void __pmHashWalkCB(__pmHashWalkCallback, void *, __pmHashCtl *);
 PCP_CALL extern __pmHashNode *__pmHashWalk(__pmHashCtl *, __pmHashWalkState);
 PCP_CALL extern __pmHashNode *__pmHashSearch(unsigned int, __pmHashCtl *);
 PCP_CALL extern int __pmHashAdd(unsigned int, void *, __pmHashCtl *);
@@ -564,13 +564,13 @@ typedef __uint32_t	__pmoff32_t;
 typedef __uint64_t	__pmoff64_t;
 
 /*
- * PCP file. This abstracts i/o, allowing different handlers, e.g.
+ * PCP file. This abstracts I/O, allowing different handlers, e.g.
  * for stdio pass-thru and transparent decompression (xz, gz, etc).
  */
 typedef struct {
-    struct __pm_fops *fops;	/* i/o handler, assigned based on file type */
-    off_t	position;	/* current uncompressed file position */
+    struct __pm_fops *fops;	/* I/O handler, assigned based on file type */
     void	*priv;		/* private data, e.g. for fd, blk cache, etc */
+    int		flags;		/* e.g. PM_FILE_PRE_DECOMPRESS */
 } __pmFILE;
 typedef struct __pm_fops {
     void	*(*__pmopen)(__pmFILE *, const char *, const char *);
@@ -593,6 +593,11 @@ typedef struct __pm_fops {
     int         (*__pmsetvbuf)(__pmFILE *, char *, int, size_t);
     int		(*__pmclose)(__pmFILE *);
 } __pm_fops;
+
+/* __pmFILE flags */
+#define PM_FILE_PRE_DECOMPRESS 0x1
+#define PM_FILE_DYNAMIC_DECOMPRESS 0x2
+#define PM_FILE_ANY_DECOMPRESS 0x3		/* mask */
 
 /* Provide a stdio-like API for __pmFILE */
 PCP_CALL extern int __pmAccess(const char *, int);
@@ -800,6 +805,7 @@ typedef struct {
     __pmFILE	*tifp;		/* temporal index */
     __pmFILE	*mdfp;		/* meta data */
     int		state;		/* (when writing) archive state */
+    __pmTimestamp last_ti;	/* (when writing) last temporal index timestamp */
     __pmHashCtl	hashpmid;	/* PMID hashed access */
     __pmHashCtl	hashrange;	/* ptr to first and last value in archive for */
 				/* each metric */
@@ -842,15 +848,24 @@ typedef struct {
 } __pmMultiLogCtl;
 
 /*
+ * Callback routines for log writer abstraction (allows remote archive write)
+ */
+struct __pmArchCtl;
+typedef int (*pmLogWriteCallBack)(const struct __pmArchCtl *, int, void *, size_t, const char *);
+typedef int (*pmLogFlushCallBack)(const struct __pmArchCtl *, int, const char *);
+typedef void (*pmLogResetCallBack)(const struct __pmArchCtl *, int, long, const char *);
+typedef off_t (*pmLogTellCallBack)(const struct __pmArchCtl *, int, const char *);
+
+/*
  * Per-context controls for archives and logs
  */
-typedef struct {
+typedef struct __pmArchCtl {
     __pmLogCtl		*ac_log;	/* Current global logging and archive
 					   control */
     __pmFILE		*ac_mfp;	/* current metrics volume */
     int			ac_curvol;	/* current metrics volume no. */
-    long		ac_offset;	/* fseek ptr for archives */
     int			ac_vol;		/* volume for ac_offset */
+    long		ac_offset;	/* fseek ptr for archives */
     int			ac_serial;	/* serial access pattern for archives */
     int			ac_flags;	/* copy of context's c_flags */
     __pmHashCtl		ac_pmid_hc;	/* per PMID controls for INTERP */
@@ -860,7 +875,7 @@ typedef struct {
     void		*ac_cache;	/* used in interp.c */
     int			ac_cache_idx;	/* used in interp.c */
     /*
-     * These were added to the ABI in order to support multiple archives
+     * Added to the ABI in order to support multiple archives
      * in a single context (for archive reading, not writing)
      */
     int			ac_meta_loaded;	/* metadata has been loaded */
@@ -869,7 +884,19 @@ typedef struct {
     int			ac_num_logs;	/* The number of archives */
     int			ac_cur_log;	/* The currently open archive */
     __pmMultiLogCtl	**ac_log_list;	/* Current set of archives */
+    /*
+     * Added to the ABI in order to support multiple writers,
+     * in particular non-POSIX-compliant writers (pmlogpush).
+     * Defaults provide POSIX-compliant (__pmFile) behaviour.
+     */
+    pmLogWriteCallBack	ac_label_cb;	/* (f)write log label (ondisk) */
+    pmLogWriteCallBack	ac_write_cb;	/* (f)write given binary data */
+    pmLogFlushCallBack	ac_flush_cb;	/* (f)flush stream requested */
+    pmLogResetCallBack	ac_reset_cb;	/* (f)seek to file position */
+    pmLogTellCallBack	ac_tell_cb;	/* (f)tell latest position */
 } __pmArchCtl;
+
+PCP_CALL extern __pmArchCtl *__pmLogWriterInit(__pmArchCtl *, __pmLogCtl *);
 
 /*
  * Instance trimming control structures for archive replay ...
@@ -926,13 +953,13 @@ typedef struct {
 
 #define PM_CONTEXT_INIT	-2		/* special type: being initialized, do not use */
 
-/* mask for (archive) directional parts of c_mode */
-#define __PM_MODE_MASK	0xffff
-
 /* internal archive routines */
 PCP_CALL extern int __pmLogVersion(const __pmLogCtl *);
 PCP_CALL extern size_t __pmLogLabelSize(const __pmLogCtl *);
+PCP_CALL extern int __pmLogDecodeLabel(const char *, size_t, __pmLogLabel *);
+PCP_CALL extern int __pmLogEncodeLabel(const __pmLogLabel *, void **, size_t *);
 PCP_CALL extern int __pmLogChkLabel(__pmArchCtl *, __pmFILE *, __pmLogLabel *, int);
+PCP_CALL extern int __pmLogCreateLabel(const char *, int, __pmLogCtl *);
 PCP_CALL extern int __pmLogCreate(const char *, const char *, int, __pmArchCtl *, int);
 PCP_CALL extern __pmFILE *__pmLogNewFile(const char *, int);
 PCP_CALL extern void __pmLogClose(__pmArchCtl *);
@@ -984,6 +1011,10 @@ PCP_DATA extern int __pmLogReads;
 /* Convert opaque context handle to __pmContext pointer */
 PCP_CALL extern __pmContext *__pmHandleToPtr(int);
 
+/* Walk the (locked) context table with a callback per context */
+typedef void (*__pmContextWalkCallback)(void *, __pmContext *);
+PCP_CALL extern void __pmContextWalk(void *, __pmContextWalkCallback);
+
 /*
  * Dump the current context (source details + instance profile),
  * for a particular instance domain.
@@ -996,7 +1027,7 @@ PCP_CALL extern int __pmFetchLocal(__pmContext *, int, pmID *, __pmResult **);
 PCP_CALL extern int __pmFetchArchive(__pmContext *, __pmResult **);
 PCP_CALL extern int __pmPrepareFetch(__pmContext *, int, const pmID *, pmID **);
 PCP_CALL extern int __pmFinishResult(__pmContext *, int, __pmResult **);
-PCP_CALL extern int __pmFinishHighResResult(__pmContext *, int, pmHighResResult **);
+PCP_CALL extern int __pmFinishHighResResult(__pmContext *, int, pmResult **);
 PCP_CALL extern int __pmFetchLocal(__pmContext *, int, pmID *, __pmResult **);
 PCP_CALL extern int __pmFetchHighResLocal(__pmContext *, int, pmID *, __pmResult **);
 PCP_CALL extern int __pmDecodeResult_ctx(__pmContext *, __pmPDU *, __pmResult **);
@@ -1326,13 +1357,13 @@ PCP_CALL extern int __pmTimestampCmp(const __pmTimestamp *, const __pmTimestamp 
 
 /* reverse ctime, time interval parsing, time conversions */
 PCP_CALL extern int __pmParseCtime(const char *, struct tm *, char **);
-PCP_CALL extern int __pmParseTime(const char *, struct timeval *,
+PCP_CALL extern int __pmtimevalParse(const char *, struct timeval *,
 				struct timeval *, struct timeval *, char **);
-PCP_CALL extern int __pmParseHighResTime(const char *, struct timespec *,
+PCP_CALL extern int __pmtimespecParse(const char *, struct timespec *,
 				struct timespec *, struct timespec *, char **);
-PCP_CALL extern int __pmConvertTime(struct tm *, struct timeval *,
+PCP_CALL extern int __pmtimevalConvert(struct tm *, struct timeval *,
 				struct timeval *);
-PCP_CALL extern int __pmConvertHighResTime(struct tm *, struct timespec *,
+PCP_CALL extern int __pmtimespecConvert(struct tm *, struct timespec *,
 				struct timespec *);
 PCP_CALL extern time_t __pmMktime(struct tm *);
 
@@ -1453,13 +1484,6 @@ __pmOffsetResult(const __pmResult *rp)
    return (pmResult *)(&((char *)rp)[offsetof(__pmResult,numpmid) - offsetof(pmResult,numpmid)]);
 }
 
-/* same for pmHighResResult ... */
-static inline pmHighResResult *
-__pmOffsetHighResResult(const __pmResult *rp)
-{
-   return (pmHighResResult *)(&((char *)rp)[offsetof(__pmResult,numpmid) - offsetof(pmHighResResult,numpmid)]);
-}
-
 /* free malloc'd data structures */
 PCP_CALL extern void __pmFreeAttrsSpec(__pmHashCtl *);
 PCP_CALL extern void __pmFreeHostAttrsSpec(__pmHostSpec *, int, __pmHashCtl *);
@@ -1468,7 +1492,6 @@ PCP_CALL extern void __pmFreeInResult(pmInResult *);
 PCP_CALL extern void __pmFreePMNS(__pmnsTree *);
 PCP_CALL extern void __pmFreeProfile(pmProfile *);
 PCP_CALL extern void __pmFreeResultValues(pmResult *);
-PCP_CALL extern void __pmFreeHighResResultValues(pmHighResResult *);
 PCP_CALL extern void __pmFreeDerived(__pmContext *);
 PCP_CALL extern void __pmFreeResult(__pmResult *);
 
@@ -1481,14 +1504,13 @@ PCP_CALL extern void __pmCtlDebug(int);
 PCP_CALL extern void __pmDumpErrTab(FILE *);
 PCP_CALL extern void __pmDumpEventRecords(FILE *, pmValueSet *, int);
 PCP_CALL extern void __pmDumpHighResEventRecords(FILE *, pmValueSet *, int);
-PCP_CALL extern void __pmDumpHighResResult(FILE *, const pmHighResResult *);
+PCP_CALL extern void __pmDumpResult(FILE *, const pmResult *);
 PCP_CALL extern void __pmDumpIDList(FILE *, int, const pmID *);
 PCP_CALL extern void __pmDumpInResult(FILE *, const pmInResult *);
 PCP_CALL extern void __pmDumpLabelSets(FILE *, const pmLabelSet *, int);
 PCP_CALL extern void __pmDumpNameList(FILE *, int, const char **);
 PCP_CALL extern void __pmDumpNameNode(FILE *, const __pmnsNode *, int);
 PCP_CALL extern void __pmDumpNameSpace(FILE *, int);
-PCP_CALL extern void __pmDumpResult(FILE *, const pmResult *);
 PCP_CALL extern void __pmPrintResult(FILE *, const __pmResult *);
 PCP_CALL extern void __pmDumpStack(void);
 PCP_CALL extern void __pmDumpStackInit(void *);
@@ -1536,9 +1558,6 @@ PCP_CALL extern int __pmShutdown(void);
 
 PCP_CALL extern void __pmIgnoreSignalPIPE(void);
 
-/* free high resolution timestamp variant of pmResult */
-PCP_CALL extern void __pmFreeHighResResult(pmHighResResult *);
-
 /*
  * Loading archive records from disk ...
  */
@@ -1574,6 +1593,38 @@ PCP_CALL extern int __pmCheckAttribute(__pmAttrKey, const char *);
 
 /* dump status change flags from pmcd */
 PCP_CALL extern void __pmDumpFetchFlags(FILE *, int);
+
+/*
+ * PMAPI_VERSION_2 interfaces
+ */
+static inline pmResult_v2 *
+__pmOffsetResult_v2(const __pmResult *rp)
+{
+   return (pmResult_v2 *)(&((char *)rp)[offsetof(__pmResult,numpmid) - offsetof(pmResult_v2,numpmid)]);
+}
+
+PCP_CALL extern void __pmFreeResultValues_v2(pmResult_v2 *);
+PCP_CALL extern void __pmDumpResult_v2(FILE *, const pmResult_v2 *);
+
+#if PMAPI_VERSION == PMAPI_VERSION_2
+/*
+ * old names with API changes mapped to _v2 variants
+ */
+#define __pmOffsetResult __pmOffsetResult_v2
+#define __pmFreeResultValues __pmFreeResultValues_v2
+#define __pmDumpResult __pmDumpResult_v2
+#define __pmDumpHighResResult __pmDumpResult
+#endif
+
+#if PMAPI_VERSION >= PMAPI_VERSION_4
+/*
+ * retire HighRes interfaces
+ */
+#define __pmOffsetHighResResult __pmOffsetResult
+#define __pmFreeHighResResultValues __pmFreeResultValues
+#define __pmDumpHighResResult __pmDumpResult
+#define __pmFreeHighResResult __pmFreeResult
+#endif
 
 #ifdef __cplusplus
 }

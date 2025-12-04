@@ -165,6 +165,7 @@ __pmFetch(__pmContext *ctxp, int numpmid, pmID *pmidlist, __pmResult **result)
 {
     int		need_unlock = 0;
     int		ctx, sts;
+    int		i;
 
     if (pmDebugOptions.pmapi)
 	trace_fetch_entry(numpmid, pmidlist);
@@ -232,15 +233,34 @@ __pmFetch(__pmContext *ctxp, int numpmid, pmID *pmidlist, __pmResult **result)
 	else {
 	    /* assume PM_CONTEXT_ARCHIVE */
 	    sts = __pmLogFetch(ctxp, numpmid, pmidlist, result);
-	    if (sts >= 0 && (ctxp->c_mode & __PM_MODE_MASK) != PM_MODE_INTERP)
+	    if (sts >= 0 && ctxp->c_mode != PM_MODE_INTERP)
 		ctxp->c_origin = (*result)->timestamp;
 	}
 
 	/* process derived metrics, if any */
-	if (have_dm) {
+	if (have_dm)
 	    __pmFinishResult(ctxp, sts, result);
-	    if (newlist != NULL)
-		free(newlist);
+
+	if (newlist != NULL)
+	    free(newlist);
+	/*
+	 * pmUnregisterDerived() introduces the possibility of a stale
+	 * PMID being used in fetch => PMID 511.?.? or PM_ID_NULL passed
+	 * to PMCD which returns PM_ERR_NOAGENT, which is NQR.
+	 *
+	 * Historically PM_ID_NULL was always possible, because that's what
+	 * pmLookupName() will set the PMID to for an unknown name in the
+	 * PMNS, and PM_ERR_AGENT in this case is also misleading.
+	 *
+	 * ... remap error code PM_ERR_AGENT to PM_ERR_PMID here for these
+	 * cases if we have a valid pmResult
+	 */
+	if (sts >= 0) {
+	    for (i = 0; i < (*result)->numpmid; i++) {
+		if ((*result)->vset[i]->numval == PM_ERR_NOAGENT &&
+		    (IS_DERIVED((*result)->vset[i]->pmid) || (*result)->vset[i]->pmid == PM_ID_NULL))
+		    (*result)->vset[i]->numval = PM_ERR_PMID;
+	    }
 	}
     }
 
@@ -275,6 +295,24 @@ pmFetch_ctx(__pmContext *ctxp, int numpmid, pmID *pmidlist, __pmResult **result)
 }
 
 int
+pmFetch_v2(int numpmid, pmID *pmidlist, pmResult_v2 **result)
+{
+    __pmResult	*rp;
+    int		sts;
+
+    sts = pmFetch_ctx(NULL, numpmid, pmidlist, &rp);
+    if (sts >= 0) {
+	pmResult_v2	*ans = __pmOffsetResult_v2(rp);
+	__pmTimestamp	tmp = rp->timestamp;	/* struct copy */
+
+	ans->timestamp.tv_sec = tmp.sec;
+	ans->timestamp.tv_usec = tmp.nsec / 1000;
+	*result = ans;
+    }
+    return sts;
+}
+
+int
 pmFetch(int numpmid, pmID *pmidlist, pmResult **result)
 {
     __pmResult	*rp;
@@ -286,37 +324,10 @@ pmFetch(int numpmid, pmID *pmidlist, pmResult **result)
 	__pmTimestamp	tmp = rp->timestamp;	/* struct copy */
 
 	ans->timestamp.tv_sec = tmp.sec;
-	ans->timestamp.tv_usec = tmp.nsec / 1000;
-	*result = ans;
-    }
-    return sts;
-}
-
-int
-pmFetchHighRes(int numpmid, pmID *pmidlist, pmHighResResult **result)
-{
-    __pmResult	*rp;
-    int		sts;
-
-    sts = pmFetch_ctx(NULL, numpmid, pmidlist, &rp);
-    if (sts >= 0) {
-	pmHighResResult	*ans = __pmOffsetHighResResult(rp);
-	__pmTimestamp	tmp = rp->timestamp;	/* struct copy */
-
-	ans->timestamp.tv_sec = tmp.sec;
 	ans->timestamp.tv_nsec = tmp.nsec;
 	*result = ans;
     }
     return sts;
-}
-
-/*
- * older name, maintained for backwards compatibility
- */
-int 
-pmHighResFetch(int numpmid, pmID *pmidlist, pmHighResResult **result)
-{
-    return pmFetchHighRes(numpmid, pmidlist, result);
 }
 
 int
@@ -329,10 +340,9 @@ __pmFetchArchive(__pmContext *ctxp, __pmResult **result)
 	if (ctxp == NULL)
 	    sts = PM_ERR_NOCONTEXT;
 	else {
-	    int	ctxp_mode = (ctxp->c_mode & __PM_MODE_MASK);
 	    if (ctxp->c_type != PM_CONTEXT_ARCHIVE)
 		sts = PM_ERR_NOTARCHIVE;
-	    else if (ctxp_mode == PM_MODE_INTERP)
+	    else if (ctxp->c_mode == PM_MODE_INTERP)
 		/* makes no sense! */
 		sts = PM_ERR_MODE;
 	    else {
@@ -349,13 +359,13 @@ __pmFetchArchive(__pmContext *ctxp, __pmResult **result)
 }
 
 int
-pmFetchArchive(pmResult **result)
+pmFetchArchive_v2(pmResult_v2 **result)
 {
     __pmResult	*rp;
     int		sts;
 
     if ((sts = __pmFetchArchive(NULL, &rp)) >= 0) {
-	pmResult	*ans = __pmOffsetResult(rp);
+	pmResult_v2	*ans = __pmOffsetResult_v2(rp);
 	__pmTimestamp	tmp = rp->timestamp;	/* struct copy */
 
 	ans->timestamp.tv_sec = tmp.sec;
@@ -366,13 +376,13 @@ pmFetchArchive(pmResult **result)
 }
 
 int
-pmFetchHighResArchive(pmHighResResult **result)
+pmFetchArchive(pmResult **result)
 {
     __pmResult	*rp;
     int		sts;
 
     if ((sts = __pmFetchArchive(NULL, &rp)) >= 0) {
-	pmHighResResult	*ans = __pmOffsetHighResResult(rp);
+	pmResult	*ans = __pmOffsetResult(rp);
 	__pmTimestamp	tmp = rp->timestamp;	/* struct copy */
 
 	ans->timestamp.tv_sec = tmp.sec;
@@ -387,14 +397,13 @@ __pmSetMode(int mode, const __pmTimestamp *when, const __pmTimestamp *delta, int
 {
     int		sts;
     __pmContext	*ctxp;
-    int		l_mode = (mode & __PM_MODE_MASK);
 
     if ((sts = pmWhichContext()) >= 0) {
 	ctxp = __pmHandleToPtr(sts);
 	if (ctxp == NULL)
 	    return PM_ERR_NOCONTEXT;
 	if (ctxp->c_type == PM_CONTEXT_HOST) {
-	    if (l_mode != PM_MODE_LIVE)
+	    if (mode != PM_MODE_LIVE)
 		sts = PM_ERR_MODE;
 	    else {
 		ctxp->c_origin.sec = ctxp->c_origin.nsec = 0;
@@ -409,8 +418,8 @@ __pmSetMode(int mode, const __pmTimestamp *when, const __pmTimestamp *delta, int
 	}
 	else {
 	    /* assume PM_CONTEXT_ARCHIVE */
-	    if (l_mode == PM_MODE_INTERP ||
-		l_mode == PM_MODE_FORW || l_mode == PM_MODE_BACK) {
+	    if (mode == PM_MODE_INTERP ||
+		mode == PM_MODE_FORW || mode == PM_MODE_BACK) {
 		int	lsts;
 		if (when != NULL) {
 		    /*
@@ -447,8 +456,19 @@ __pmSetMode(int mode, const __pmTimestamp *when, const __pmTimestamp *delta, int
     return sts;
 }
 
+#ifndef PM_XTB_FLAG
+/*
+ * Extended time base definitions and macros ...
+ * were in pmapi.h, but deprecated there so need 'em here for
+ * backwards API compatibility
+ */
+#define PM_XTB_FLAG	0x1000000
+#define PM_XTB_SET(m)	(PM_XTB_FLAG | ((m) << 16))
+#define PM_XTB_GET(m)	(((m) & PM_XTB_FLAG) ? (((m) & 0xff0000) >> 16) : -1)
+#endif
+
 int
-pmSetMode(int mode, const struct timeval *when, int delta)
+pmSetMode_v2(int mode, const struct timeval *when, int delta)
 {
     __pmTimestamp	offset, interval;
     int			direction;
@@ -498,10 +518,11 @@ pmSetMode(int mode, const struct timeval *when, int delta)
 }
 
 int
-pmSetModeHighRes(int mode, const struct timespec *when, const struct timespec *delta)
+pmSetMode(int mode, const struct timespec *when, const struct timespec *delta)
 {
     __pmTimestamp	offset, interval;
     int			direction;
+    int			sts;
 
     /* set internal delta time */
     if (delta != NULL) {
@@ -521,9 +542,51 @@ pmSetModeHighRes(int mode, const struct timespec *when, const struct timespec *d
     else
 	direction = 0;
 
-    if (when == NULL)
-	return __pmSetMode(mode, NULL, &interval, direction);
+    if (pmDebugOptions.pmapi) {
+	fprintf(stderr, "pmSetMode(mode=");
+	switch (mode) {
+	    case PM_MODE_LIVE:
+		fprintf(stderr, "LIVE");
+		break;
+	    case PM_MODE_INTERP:
+		fprintf(stderr, "INTERP");
+		break;
+	    case PM_MODE_FORW:
+		fprintf(stderr, "FORW");
+		break;
+	    case PM_MODE_BACK:
+		fprintf(stderr, "BACK");
+		break;
+	    default:
+		fprintf(stderr, "%d?", mode);
+		break;
+	}
+	fprintf(stderr, ", when=");
+	pmtimespecPrint(stderr, when);
+	fprintf(stderr, ", delta=");
+	pmtimespecPrintInterval(stderr, delta);
+	fprintf(stderr, ") direction=%d <:", direction);
+    }
+
+    if (when == NULL) {
+	sts =  __pmSetMode(mode, NULL, &interval, direction);
+	goto pmapi_return;
+    }
     offset.sec = when->tv_sec;
     offset.nsec = when->tv_nsec;
-    return __pmSetMode(mode, &offset, &interval, direction);
+    sts = __pmSetMode(mode, &offset, &interval, direction);
+
+pmapi_return:
+
+    if (pmDebugOptions.pmapi) {
+	fprintf(stderr, ":> returns ");
+	if (sts >= 0)
+	    fprintf(stderr, "%d\n", sts);
+	else {
+	    char	errmsg[PM_MAXERRMSGLEN];
+	    fprintf(stderr, "%s\n", pmErrStr_r(sts, errmsg, sizeof(errmsg)));
+	}
+    }
+
+    return sts;
 }

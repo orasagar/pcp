@@ -211,11 +211,12 @@ pmaDeltaInDom(__pmLogInDom *old, __pmLogInDom *new, __pmLogInDom *new_delta)
     new_delta->instlist = (int *)malloc(new_delta->numinst * sizeof(int));
     if (new_delta->instlist == NULL) {
 	pmNoMem("pmaDeltaInDom: new instlist", new_delta->numinst * sizeof(int), PM_RECOV_ERR);
-	goto done;
+	goto fallback;
     }
     new_delta->namelist = (char **)malloc(new_delta->numinst * sizeof(char *));
     if (new_delta->namelist == NULL) {
 	pmNoMem("pmaDeltaInDom: new namelist", new_delta->numinst * sizeof(char *), PM_RECOV_ERR);
+	free(new_delta->instlist);
 	goto fallback;
     }
     /*
@@ -509,7 +510,13 @@ pmaTryDeltaInDom(__pmLogCtl *lcp, __int32_t **rbuf, __pmLogInDom *lidp)
 		pmInDomStr(indom), pmErrStr(lsts));
 	    exit(1);
 	}
-
+	else {
+	    /* not using "delta" indom */
+	    if (rbuf) {
+		/* free old "last" record buffer */
+		free(last->buf);
+	    }
+	}
     }
 
     /* for next time we're called ... this -> last */

@@ -1,6 +1,6 @@
 #!/usr/bin/env pmpython
 #
-# Copyright (C) 2018-2022 Red Hat.
+# Copyright (C) 2018-2025 Red Hat.
 # Copyright (C) 2004-2016 Dag Wieers <dag@wieers.com>
 #
 # This program is free software; you can redistribute it and/or modify it
@@ -49,6 +49,7 @@ def py3round(number, ndigits=None):
     return round(number, ndigits)
 
 TIMEFMT = os.getenv('DSTAT_TIMEFMT') or '%d-%m %H:%M:%S'
+TIMEMIN = '%H:%M:%S'
 
 NOUNITS = pmapi.pmUnits()
 
@@ -91,8 +92,7 @@ ANSI = {
 
     'clear': '\033[2J',
     'clearline': '\033[2K',
-    'save': '\033[s',
-    'restore': '\033[u',
+    'linestart': '\033[0G',
     'nolinewrap': '\033[7l',
 
     'default': '\033[0;0m',
@@ -184,7 +184,7 @@ class DstatTerminal:
         user = getpass.getuser()
         host = context.pmGetContextHostName()
         host = host.split('.')[0]
-        path = context.pmProgname()
+        path = context.pmGetProgname()
         args = path + ' ' + ' '.join(arguments)
         sys.stdout.write('\033]0;(%s@%s) %s\007' % (user, host, args))
 
@@ -249,6 +249,7 @@ class DstatPlugin(object):
         self.names = []     # list of all column names for the plugin
         self.mgroup = []    # list of names of metrics in this plugin
         self.igroup = []    # list of names of this plugins instances
+        self.filtertype = None
 
     def apply(self, metric):
         """ Apply default pmConfig list values where none exist as yet
@@ -282,19 +283,19 @@ class DstatPlugin(object):
             metric[12] = self.cullinsts
         metric[13] = self   # back-pointer to this from metric dict
         metric[14] = self.valuesets  # recent samples for averaging
+        metric[15] = self.filtertype # filtertype for plugin
 
     def prepare_grouptype(self, instlist, fullinst):
         """Setup a list of instances from the command line"""
         if fullinst:
             self.grouptype = 1
             instlist = []
-        elif instlist is None:
-            instlist = ['total']
-        if 'total' in instlist:
-            self.grouptype = 2 if (len(instlist) == 1) else 3
-            instlist.remove('total') # remove command line arg
-        else:
-            self.grouptype = 1
+        elif isinstance(instlist, list) and len(instlist) > 0:
+            if 'total' in instlist:
+                self.grouptype = 2 if (len(instlist) == 1) else 3
+                instlist.remove('total') # remove command line arg
+            else:
+                self.grouptype = 1
         self.instances = instlist
 
     def statwidth(self):
@@ -444,7 +445,7 @@ class DstatTool(object):
 
         ### Add additional dstat metric specifiers
         dspec = (None, 'printtype', 'colorstep', 'grouptype', 'cullinsts',
-                'plugin', 'valuesets')
+                'plugin', 'valuesets', 'filtertype')
         mspec = self.pmconfig.metricspec + dspec
         self.pmconfig.metricspec = mspec
 
@@ -463,7 +464,7 @@ class DstatTool(object):
         self.derived = None
         self.globals = 1
         self.samples = -1 # forever
-        self.interval = pmapi.timeval(1)      # 1 sec
+        self.interval = pmapi.timespec(1)      # 1 sec
         self.opts.pmSetOptionInterval(str(1)) # 1 sec
         self.delay = 1.0
         self.type = 0
@@ -503,6 +504,7 @@ class DstatTool(object):
 
         # Options for specific plugins
         self.cpulist = None
+        self.gpulist = None
         self.disklist = None
         self.dmlist = None
         self.mdlist = None
@@ -525,7 +527,7 @@ class DstatTool(object):
         # values - 0:text label, 1:instance(s), 2:unit/scale, 3:type,
         #          4:width, 5:pmfg item, 6:precision, 7:limit,
         #          [ 8:printtype, 9:colorstep, 10:grouptype, 11:cullinsts,
-        #           12:plugin, 13:valuesets <- Dstat extras ]
+        #           12:plugin, 13:valuesets <- Dstat extras, 14: filtertype]
         self.metrics = OrderedDict()
         self.pmfg = None
         self.pmfg_ts = None
@@ -587,10 +589,11 @@ class DstatTool(object):
         timefmtlen = len(time.strftime(TIMEFMT, time.localtime()))
         timer = DstatTimePlugin('time', 'system', timefmtlen)
         timeradv = DstatTimePlugin('time-adv', 'system', timefmtlen + 4)
+        timermin = DstatTimePlugin('times', 'system', 8)  # short-format
         epoch = DstatTimePlugin('epoch', 'epoch', 10)
         epochadv = DstatTimePlugin('epoch-adv', 'epoch', 14)
-        names = [timer.name, timeradv.name, epoch.name, epochadv.name]
-        self.timelist = [timer, timeradv, epoch, epochadv]
+        names = [timer.name, timeradv.name, timermin.name, epoch.name, epochadv.name]
+        self.timelist = [timer, timeradv, timermin, epoch, epochadv]
         self.timeplugins = names
         self.allplugins.append(names)
 
@@ -637,8 +640,13 @@ class DstatTool(object):
         for section in self.plugins:
             if section in self.timeplugins:
                 timelen += 1
-        if not self.plugins or (timelen > 0 and timelen == len(self.plugins)):
-            print('You did not select any stats, using -cdngy by default.')
+        have_time = timelen > 0 and timelen == len(self.plugins)
+        if not self.plugins or have_time:
+            if have_time:
+                print('You did not select any stats, using -cdngy by default.')
+            else:  # if no time and no plugins specified, provide a time
+                print('You did not select any stats, using -ucdngy by default.')
+                self.plugins += ['times']
             self.plugins += ['cpu', 'disk', 'net', 'page', 'sys']
 
         lib = self.pmconfig
@@ -686,34 +694,36 @@ class DstatTool(object):
                                 lib.parse_verbose_metric_info(metrics, name, 'label', mkey)
                         lib.parse_verbose_metric_info(metrics, name, spec, value)
 
-                # Instance logic for -C/-D/-L/-M/-P/-I/-N/-S options
-                if section == 'cpu':
-                    plugin.prepare_grouptype(self.cpulist, self.full)
-                elif section in ['disk', 'disk-tps']:
-                    plugin.prepare_grouptype(self.disklist, self.full)
-                elif section in ['dm', 'dm-tps']:
-                    plugin.prepare_grouptype(self.dmlist, self.full)
-                elif section in ['md', 'md-tps']:
-                    plugin.prepare_grouptype(self.mdlist, self.full)
-                elif section in ['part', 'part-tps']:
-                    plugin.prepare_grouptype(self.partlist, self.full)
-                elif section == 'int':
-                    plugin.prepare_grouptype(self.intlist, self.full)
-                elif section == 'net':
-                    plugin.prepare_grouptype(self.netlist, self.full)
-                elif section == 'net-packets':
-                    plugin.prepare_grouptype(self.netpacketlist, self.full)
-                elif section == 'swap':
-                    plugin.prepare_grouptype(self.swaplist, self.full)
+                    if key in ['filtertype']:
+                        if value == 'cpu':
+                            plugin.prepare_grouptype(self.cpulist, self.full)
+                        elif value == 'disk':
+                            plugin.prepare_grouptype(self.disklist, self.full)
+                        elif value == 'dm':
+                            plugin.prepare_grouptype(self.dmlist, self.full)
+                        if value == 'gpu':
+                            plugin.prepare_grouptype(self.gpulist, self.full)
+                        elif value == 'md':
+                            plugin.prepare_grouptype(self.mdlist, self.full)
+                        elif value == 'part':
+                            plugin.prepare_grouptype(self.partlist, self.full)
+                        elif value == 'int':
+                            plugin.prepare_grouptype(self.intlist, self.full)
+                        elif value == 'net':
+                            plugin.prepare_grouptype(self.netlist, self.full)
+                        elif value == 'net-packets':
+                            plugin.prepare_grouptype(self.netpacketlist, self.full)
+                        elif value == 'swap':
+                            plugin.prepare_grouptype(self.swaplist, self.full)
 
             for metric in metrics:
                 name = metrics[metric][0]
-                #print("Plugin[%s]: %s" % (name, metrics[metric]))
+                #print("Plugin[%s]: %s\n" % (name, metrics[metric]))
                 plugin.apply(metrics[metric])
                 state = metrics[metric][1:]
                 plugin.metrics.append(state)
                 self.metrics[name] = state
-                #print("Appended[%s]: %s" % (name, state))
+                #print("Appended[%s]: %s\n" % (name, state))
 
             self.totlist.append(plugin)
 
@@ -723,7 +733,7 @@ class DstatTool(object):
             operands = []
         else:
             try:
-                self.interval = pmapi.timeval.fromInterval(operands[0])
+                self.interval = pmapi.timespec.fromInterval(operands[0])
                 self.delay = float(self.interval)
             except:
                 sys.stderr.write("Invalid sample delay '%s'\n" % operands[0])
@@ -746,7 +756,7 @@ class DstatTool(object):
         opts = pmapi.pmOptions()
         opts.pmSetOptionCallback(self.option)
         opts.pmSetOverrideCallback(self.option_override)
-        opts.pmSetShortOptions("acC:dD:fghiI:lL:mM:nN:o:pP:qrsS:tTvVy?")
+        opts.pmSetShortOptions("acC:dD:fgG:hiI:lL:mM:nN:o:pP:qrsS:tTuvVy?")
         opts.pmSetShortUsage("[-afv] [options...] [delay [count]]")
         opts.pmSetLongOptionText('Versatile tool for generating system resource statistics')
 
@@ -777,6 +787,7 @@ class DstatTool(object):
         opts.pmSetLongOptionText(' '*5 + '-S swap1,total' + ' '*8 + 'include swap1 and total')
         opts.pmSetLongOption('time', 0, 't', '', 'enable time/date output')
         opts.pmSetLongOption('time-adv', 0, None, '', 'enable time/date output (with milliseconds)')
+        opts.pmSetLongOption('times', 0, 'u', '', 'enable a short time output format (HH:MM::SS)')
         opts.pmSetLongOption('epoch', 0, 'T', '', 'enable time counter (seconds since epoch)')
         opts.pmSetLongOption('epoch-adv', 0, None, '', 'enable time counter (milliseconds since epoch)')
         opts.pmSetLongOption('sys', 0, 'y', '', 'enable system stats')
@@ -790,11 +801,15 @@ class DstatTool(object):
         opts.pmSetLongOption('vm-adv', 0, None, '', 'enable advanced vm stats')
 #       opts.pmSetLongOption('zones', 0, None, '', 'enable zoneinfo stats')
         opts.pmSetLongOptionText('')
+        opts.pmSetLongOption('amd-gpu', 0, None, '', 'enable AMD GPU stats')
+        opts.pmSetLongOption('nvidia-gpu', 0, None, '', 'enable NVIDIA GPU stats')
+        opts.pmSetLongOptionText(' '*5 + '-G 0,1' + ' '*10 + 'include gpu0, gpu1')
+        opts.pmSetLongOptionText('')
         opts.pmSetLongOption('list', 0, None, '', 'list all available plugins')
         opts.pmSetLongOption('plugin', 0, None, '', 'enable external plugin by name, see --list')
         opts.pmSetLongOptionText('')
         opts.pmSetLongOption('all', 0, 'a', '', 'equals -cdngy (default)')
-        opts.pmSetLongOption('full', 0, 'f', '', 'automatically expand -C, -D, -I, -N and -S lists')
+        opts.pmSetLongOption('full', 0, 'f', '', 'automatically expand -C, -G, -D, -I, -N and -S lists')
         opts.pmSetLongOption('vmstat', 0, 'v', '', 'equals -pmgdsc -D total')
         opts.pmSetLongOptionText('')
         opts.pmSetLongOption('bits', 0, '', '', 'force bits for values expressed in bytes')
@@ -861,6 +876,9 @@ class DstatTool(object):
                 self.disklist.append('total')
         elif opt in ['device-mapper']:
             self.append_plugin('dm')
+        elif opt in ['G']:
+            insts = arg.split(',')
+            self.gpulist = sorted(['gpu' + str(x) for x in insts if x != 'total'])
         elif opt in ['L']:
             insts = arg.split(',')
             self.dmlist = sorted([x for x in insts if x != 'total'])
@@ -917,6 +935,8 @@ class DstatTool(object):
             self.append_plugin('time')
         elif opt in ['T']:
             self.append_plugin('epoch')
+        elif opt in ['u']:
+            self.append_plugin('times')
         elif opt in ['y']:
             self.append_plugin('sys')
         elif opt in ['a', 'all']:
@@ -1082,7 +1102,7 @@ class DstatTool(object):
                 context = PM_CONTEXT_LOCAL
         if self.pmfg is None:
             self.pmfg = pmapi.fetchgroup(context, self.source)
-        self.pmfg_ts = self.pmfg.extend_timestamp()
+        self.pmfg_ts = self.pmfg.extend_timespec()
         self.context = self.pmfg.get_context()
 
         if pmapi.c_api.pmSetContextOptions(self.context.ctx, self.opts.mode, self.opts.delta):
@@ -1178,8 +1198,10 @@ class DstatTool(object):
             value = str(int(stamp.value))
         elif plugin.name in ['time', 'time-adv']:    # formatted time
             value = stamp().strftime(TIMEFMT)
+        elif plugin.name in ['times']:    # short-form formatted time
+            value = stamp().strftime(TIMEMIN)
         if plugin.name in ['epoch-adv', 'time-adv']: # with milliseconds
-            value = value + '.' + str(stamp.value.tv_usec * 1000)[:3]
+            value = value + '.' + str(stamp.value.tv_nsec * 1000000)[:3]
         return value
 
     @staticmethod
@@ -1681,7 +1703,7 @@ class DstatTool(object):
             line += '"Author:","PCP team <pcp@groups.io> and Dag Wieers <dag@wieers.com>",,,,"URL:","https://pcp.io/ and http://dag.wieers.com/home-made/dstat/"\n'
         import getpass # pylint: disable=import-outside-toplevel
         line += '"Host:","' + self.context.pmGetContextHostName() + '",,,,"User:","' + getpass.getuser() + '"\n'
-        line += '"Cmdline:","' + self.context.pmProgname() + ' ' + ' '.join(self.arguments) + '",,,,"Date:","' + time.strftime('%d %b %Y %H:%M:%S %Z') + '"\n'
+        line += '"Cmdline:","' + self.context.pmGetProgname() + ' ' + ' '.join(self.arguments) + '",,,,"Date:","' + time.strftime('%d %b %Y %H:%M:%S %Z') + '"\n'
         ### Process title
         for o in visible:
             line += o.csvtitle()
@@ -1839,9 +1861,9 @@ class DstatTool(object):
         if op.update and not self.novalues:
             if step == 1 and update != 0 and not onovalues:
                 newline = '\n'
-                newline += ANSI['reset'] + ANSI['clearline'] + ANSI['save']
+                newline += ANSI['reset'] + ANSI['clearline']
             elif loop != 0:
-                newline = ANSI['restore']
+                newline = ANSI['clearline'] + ANSI['linestart']
 
         # Display header
         if showheader:
@@ -1850,7 +1872,6 @@ class DstatTool(object):
             showheader = False
             sys.stdout.write(newline)
             newline = self.show_header(vislist)
-            newline += ANSI['reset'] + ANSI['clearline'] + ANSI['save']
 
         # Display CSV header
         newoline = ''

@@ -43,11 +43,6 @@ __pmTimestamp	goldenstart;
  * - for index files, following the label record there should be
  *   a number of complete records, each of which is a __pmLogTI
  *   record, with the fields converted network byte order
- *
- * TODO - repair
- * - truncate metadata and data files ... unconditional or interactive confirm?
- * - mark index as bad and needing rebuild
- * - move access check into here (if cannot open file for reading we're screwed)
  */
 
 /*
@@ -57,7 +52,7 @@ __pmTimestamp	goldenstart;
  * Checks here mimic those in __pmLogChkLabel().
  */
 static int
-checklabel(__pmFILE *f, char *fname, int len)
+checklabel(__pmFILE *f, char *fname, int len, int *eol)
 {
     __pmLogLabel	label;
     size_t		bytes;
@@ -68,20 +63,26 @@ checklabel(__pmFILE *f, char *fname, int len)
     /* first read the magic number for sanity and version checking */
     __pmFseek(f, sizeof(__int32_t), SEEK_SET);
     if ((bytes = __pmFread(&magic, 1, sizeof(magic), f)) != sizeof(magic)) {
+	if (*eol == 0) fputc('\n', stderr);
 	fprintf(stderr, "checklabel(...,%s): botch: magic read returns %zu not %zu as expected\n", fname, bytes, sizeof(magic));
+	*eol = 1;
 	sts = STS_FATAL;
     }
 
     magic = ntohl(magic);
     if ((magic & 0xffffff00) != PM_LOG_MAGIC) {
+	if (*eol == 0) fputc('\n', stderr);
 	fprintf(stderr, "%s: bad label magic number: 0x%x not 0x%x as expected\n",
 	    fname, magic & 0xffffff00, PM_LOG_MAGIC);
+	*eol = 1;
 	sts = STS_FATAL;
     }
     if ((magic & 0xff) != PM_LOG_VERS02 &&
         (magic & 0xff) != PM_LOG_VERS03) {
+	if (*eol == 0) fputc('\n', stderr);
 	fprintf(stderr, "%s: bad label version: %d not %d or %d as expected\n",
 	    fname, magic & 0xff, PM_LOG_VERS02, PM_LOG_VERS03);
+	*eol = 1;
 	sts = STS_FATAL;
     }
 
@@ -89,11 +90,36 @@ checklabel(__pmFILE *f, char *fname, int len)
     memset((void *)&label, 0, sizeof(label));
     if ((sts = __pmLogLoadLabel(f, &label)) < 0) {
 	/* don't report again if error already reported above */
-	if (sts != STS_FATAL)
+	if (sts != STS_FATAL) {
+	    if (*eol == 0) fputc('\n', stderr);
 	    fprintf(stderr, "%s: cannot load label record: %s\n", fname, pmErrStr(sts));
+	    *eol = 1;
+	}
 	sts = STS_FATAL;
     }
     else {
+	if (vflag > 1) {
+	    if (*eol == 0) fputc('\n', stderr);
+	    fprintf(stderr, "%s: label record [magic=0x%08x version=%d vol=%d pid=%d start=",
+                fname, label.magic, label.magic & 0xff, label.vol, label.pid);
+	    __pmPrintTimestamp(stderr, &label.start);
+	    if (label.features != 0) {
+		char        *bits = __pmLogFeaturesStr(label.features);
+		if (bits != NULL) {
+		    fprintf(stderr, " features=0x%x \"%s\"", label.features, bits);
+		    free(bits);
+		}
+		else
+		    fprintf(stderr, " features=0x%x \"???\"", label.features);
+	    }
+	    fprintf(stderr, " host=%s", label.hostname);
+	    if (label.timezone)
+		fprintf(stderr, " tz=%s", label.timezone);
+	    if (label.zoneinfo)
+		fprintf(stderr, " zoneinfo=%s", label.zoneinfo);
+	    fprintf(stderr, "]\n");
+	    *eol = 1;
+	}
 	if (goldenmagic == 0) {
 	    if (sts == STS_OK) {
 		/* first good label */
@@ -102,8 +128,10 @@ checklabel(__pmFILE *f, char *fname, int len)
 		goldenstart = label.start;
 	    }
 	} else if ((magic & 0xff) != (goldenmagic & 0xff)) {
+	    if (*eol == 0) fputc('\n', stderr);
 	    fprintf(stderr, "%s: mismatched label version: %d not %d as expected from %s\n",
 				fname, magic & 0xff, magic & 0xff, goldenfname);
+	    *eol = 1;
 	    sts = STS_FATAL;
 	}
 	__pmLogFreeLabel(&label);
@@ -139,6 +167,11 @@ pass0(char *fname)
 	fprintf(stderr, "%s: cannot open file: %s\n", fname, osstrerror());
 	sts = STS_FATAL;
 	goto done;
+    }
+
+    if (repair && (f->flags & PM_FILE_ANY_DECOMPRESS)) {
+	fprintf(stderr, "Error: %s: compressed file, repair not allowed\n", fname);
+	exit(1);
     }
     
     pmstrncpy(logBase, sizeof(logBase), fname);
@@ -249,7 +282,7 @@ pass0(char *fname)
 
 	if (nrec == 0) {
 	    int		xsts;
-	    xsts = checklabel(f, fname, len - 2 * sizeof(len));
+	    xsts = checklabel(f, fname, len - 2 * sizeof(len), &eol);
 	    if (label_ok == STS_OK)
 		/* just remember first not OK status */
 		label_ok = xsts;
@@ -346,8 +379,19 @@ empty_check:
      */
 done:
     if (sts == STS_FATAL && offset > 0) {
-	fprintf(stderr, "%s: last valid record ends at offset %ld\n", fname, offset);
+	struct stat	sbuf;
+	if (stat(fname, &sbuf) >= 0) {
+	    fprintf(stderr, "%s: last valid record ends at offset %lld (of %lld)\n",
+		    fname, (long long)offset, (long long)sbuf.st_size);
+	}
+	else {
+	    fprintf(stderr, "%s: last valid record ends at offset %lld of ??? bytes\n",
+		    fname, (long long)offset);
+	    sbuf.st_size = 0;
+	}
+	try_truncate(fname, offset, sbuf.st_size);
     }
+
     if (is == IS_INDEX) {
 	if (sts == STS_OK)
 	    index_state = STATE_OK;

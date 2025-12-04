@@ -35,6 +35,10 @@ LIBS_SUBDIRS = \
 	libpcp_fault \
 	#
 
+# ABI compatibility (libpcp.so.3)
+#
+LIBS_SUBDIRS += libpcp3
+
 # ones that generate .static executables and may be used later on
 # in the build
 #
@@ -61,6 +65,7 @@ OTHER_SUBDIRS += \
 	pcp2influxdb \
 	pcp2json \
 	pcp2openmetrics \
+	pcp2opentelemetry \
 	pcp2spark \
 	pcp2xlsx \
 	pcp2xml \
@@ -75,7 +80,6 @@ OTHER_SUBDIRS += \
 	pmdas \
 	pmdate \
 	pmdbg \
-	pmlogdump \
 	pmdumptext \
 	pmerr \
 	pmgenmap \
@@ -87,14 +91,15 @@ OTHER_SUBDIRS += \
 	pmlc \
 	pmlock \
 	pmlogcheck \
-	pmlogctl \
+	pmlogconf \
+	pmlogdump \
 	pmlogextract \
 	pmlogger \
 	pmlogreduce \
-	pmlogconf \
 	pmloglabel \
 	pmlogmv \
 	pmlogpaste \
+	pmlogpush \
 	pmlogrewrite \
 	pmlogredact \
 	pmlogsize \
@@ -121,6 +126,8 @@ OTHER_SUBDIRS += \
 	autofsd-probe \
 	telnet-probe \
 	collectl2pcp \
+	guidellm2pcp \
+	vllmbench2pcp \
 	iostat2pcp \
 	mrtg2pcp \
 	sar2pcp \
@@ -133,6 +140,7 @@ OTHER_SUBDIRS += \
 	derived \
 	selinux \
 	find-filter \
+	ctl-tools \
 	runaspcp \
 	pmcheck \
 	indomcachectl \

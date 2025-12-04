@@ -75,6 +75,8 @@ devices all share the same statistics in the kernel as the st devices.
 @ 60.42 scsi devices identified by unique WWID
 @ 60.43 set of hugepage sizes
 @ 60.44 set of hugepage sizes for each NUMA node
+@ 60.45 network filesystem (NFS) v4 server connected clients
+@ 60.46 network filesystem (NFS) v4 server open files
 
 @ kernel.uname.release release level of the running kernel
 Release level of the running kernel as reported via the release[]
@@ -1030,6 +1032,13 @@ pressure.
 @ mem.numa.util.hugepagesTotal per-node total count of hugepages
 @ mem.numa.util.hugepagesFree per-node count of free hugepages
 @ mem.numa.util.hugepagesSurp per-node count of surplus hugepages
+@ mem.numa.util.swapCached per-node amount of memory in swap cache
+@ mem.numa.util.kreclaimable per-node kernel reclaimable memory
+@ mem.numa.util.anonhugepages per-node amount of memory in anonymous huge pages
+@ mem.numa.util.shmemhugepages per-node amount of shared memory allocated with huge
+@ mem.numa.util.shmempmdmapped per-node shared memory mapped into userspace with hugepages
+@ mem.numa.util.filehugepages per-node page cache (file) pages allocated with hugepages
+@ mem.numa.util.filepmdmapped per-node page cache mapped into userspace with hugepages
 @ mem.numa.alloc.hit per-node count of times a task wanted alloc on local node and succeeded
 @ mem.numa.alloc.miss per-node count of times a task wanted alloc on local node but got another node
 @ mem.numa.alloc.foreign count of times a task on another node alloced on that node, but got this node
@@ -1800,6 +1809,23 @@ tools running on IRIX.
 @ nfs4.client.reqs cumulative total for each client NFSv4 request type
 @ nfs4.server.calls cumulative total of server NFSv4 operations, plus NULL requests
 @ nfs4.server.reqs cumulative total for each server NFSv4 operation, and for NULL requests
+@nfs4.server.clients.client_id client_id of the client connected to the NFS server
+@nfs4.server.clients.addr IP address of the client connected to the NFS server
+@nfs4.server.clients.status Status of the client connected to the NFS server
+@nfs4.server.clients.hostname Hostname of the client connected to the NFS server
+@nfs4.server.clients.callback_state Callback state of the client to the NFS server
+@nfs4.server.clients.callback_addr Callback address of the client to the NFS server
+@nfs4.server.clients.admin_revoked_states Admin revoked states for the client
+@nfs4.server.clients.session_slots Session slots for the client
+@nfs4.server.clients.session_target_slots Target for session slots for the client
+@nfs4.server.open.inode Inode of the open file by the client to the NFS server
+@nfs4.server.open.type Type of operation of the open file by the client to the NFS server
+@nfs4.server.open.access Access mode of the open file by the client to the NFS server
+@nfs4.server.open.filename Filename of the open file by the client to the NFS server
+@nfs4.server.open.client_id Client ID of the client
+@nfs4.server.open.client_addr IP address of the client
+@nfs4.server.open.client_hostname Hostname of the client
+
 @ rpc.client.rpccnt cumulative total of client RPC requests
 @ rpc.client.rpcretrans cumulative total of client RPC retransmissions
 @ rpc.client.rpcauthrefresh cumulative total of client RPC auth refreshes
@@ -2672,6 +2698,10 @@ Incoming multipath packet dropped due to memory limit.
 @ network.tcp.tcpaokeynotfound the TCPAOKeyNotFound field of the Tcp line from /proc/net/netstat
 @ network.tcp.tcpaogood the TCPAOGood field of the Tcp line from /proc/net/netstat
 @ network.tcp.tcpaodroppedicmps the TCPAODroppedIcmps field of the Tcp line from /proc/net/netstat
+@ network.tcp.pawsoldack the PAWSOldAck field of the Tcp line from /proc/net/netstat
+@ network.tcp.tsecrrejected the TSEcrRejected field of the Tcp line from /proc/net/netstat
+@ network.tcp.pawstimewait the PAWSTimewait field of the Tcp line from /proc/net/netstat
+@ network.tcp.beyondwindow the BeyondWindow field of the Tcp line from /proc/net/netstat
 @ network.mptcp.mpfailtx the MPFailTx field of the MPTcp line from /proc/net/netstat
 Multipath TCP MP_FAIL transmits.
 @ network.mptcp.mpfailrx the MPFailRx field of the MPTcp line from /proc/net/netstat
@@ -2712,6 +2742,12 @@ Multipath TCP incoming RM_ADDR drops.
 @ network.mptcp.mpjoinsyntxbinderr the MPJoinSynTxBindErr field of the MPTcp line from /proc/net/netstat
 @ network.mptcp.mpjoinsyntxconnecterr the MPJoinSynTxConnectErr field of the MPTcp line from /proc/net/netstat
 @ network.mptcp.blackhole the Blackhole field of the MPTcp line from /proc/net/netstat
+@ network.mptcp.mpjoinrejected the MPJoinRejected field of the MPTcp line from /proc/net/netstat
+@ network.mptcp.mpcapabledatafallback the MPCapableDataFallback field of the MPTcp line from /proc/net/netstat
+@ network.mptcp.md5sigfallback the MD5SigFallback field of the MPTcp line from /proc/net/netstat
+@ network.mptcp.dssfallback the DssFallback field of the MPTcp line from /proc/net/netstat
+@ network.mptcp.simultconnectfallback the SimultConnectFallback field of the MPTcp line from /proc/net/netstat
+@ network.mptcp.fallbackfailed the FallbackFailed field of the MPTcp line from /proc/net/netstat
 
 @ disk.wwid.scsi_paths per-device/wwid scsi paths to same physical device
 The value of this string typed metric is the sd paths to the same physical

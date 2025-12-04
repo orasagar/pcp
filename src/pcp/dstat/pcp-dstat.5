@@ -1,3 +1,4 @@
+'\" t
 '\"macro stdmacro
 .\"
 .\" Copyright (C) 2018-2020,2022 Red Hat.
@@ -141,6 +142,31 @@ instances from the aggregation ('total') in generated reports.
 For example it is common to exclude loopback devices from the
 network interface reports, this is achieved using this option.
 Default is to report on all instances (no culling).
+.RE
+.PP
+filtertype (string)
+.RS 4
+Used for plugin metrics that allow command-line instance filtering
+options.
+The value of the filtertype entry should be appropriate for
+the instance select option being used as listed in the table
+below.
+.P
+.TS
+l l
+--
+l l.
+filtertype	instance select option
+cpu	-C
+disk	-D
+dm	-L
+md	-M
+part	-P
+int	-I
+net	-N
+net-packets	-N
+swap	-S
+.TE
 .RE
 .SS The [plugin] metrics
 Each plugin must have at least one metric associated with it.

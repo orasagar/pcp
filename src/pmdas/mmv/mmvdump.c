@@ -19,7 +19,7 @@
 #include <pcp/mmv_dev.h>
 #include <inttypes.h>
 #include <sys/stat.h>
-#include <strings.h>
+#include <string.h>
 
 int
 dump_indoms(void *addr, size_t size, int idx, long base, __uint64_t offset, __int32_t count)
@@ -567,25 +567,27 @@ flagstr(int flags)
     static char bits[32];
     char *ptr;
 
+    buf[0] = '\0';
+
     if (flags == 0)
-	strcat(buf, "none");
+	pmstrncat(buf, sizeof(buf), "none");
 
     if (flags & MMV_FLAG_NOPREFIX)
-	strcat(buf, "noprefix, ");
+	pmstrncat(buf, sizeof(buf), "noprefix, ");
     if (flags & MMV_FLAG_PROCESS)
-	strcat(buf, "process, ");
+	pmstrncat(buf, sizeof(buf), "process, ");
     if (flags & MMV_FLAG_SENTINEL)
-	strcat(buf, "sentinel, ");
+	pmstrncat(buf, sizeof(buf), "sentinel, ");
 
     flags &= ~(MMV_FLAG_NOPREFIX | MMV_FLAG_PROCESS | MMV_FLAG_SENTINEL);
 
     /* unrecognised bits */
     if (flags) {
 	pmsprintf(bits, sizeof(bits), "unknown=%x", flags);
-	strcat(buf, bits);
+	pmstrncat(buf, sizeof(buf), bits);
     } else {
 	/* remove any trailing comma-space */
-	if ((ptr = rindex(buf, ',')) != NULL)
+	if ((ptr = strrchr(buf, ',')) != NULL)
 	    *ptr = '\0';
     }
     return buf;
@@ -655,7 +657,8 @@ dump(const char *file, void *addr, size_t size)
 	count = toc[i].count;
 	offset = toc[i].offset;
 
-	if ((__int32_t)count < 1) {
+	if ((__int32_t)count < 1 &&
+	    type != MMV_TOC_INSTANCES && type != MMV_TOC_VALUES) {
 	    printf("Bad TOC[%d]: invalid entry count %d\n", i, (__int32_t)count);
 	    continue;
 	}

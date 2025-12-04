@@ -24,13 +24,13 @@ static pmID pmid_a[N_PMID_A];
 static pmID pmid_b[N_PMID_B];
 
 static void
-printstamp(struct timeval *tp)
+printstamp(struct timespec *tp)
 {
     static struct tm    tmp;
     time_t		clock = (time_t)tp->tv_sec;
 
     pmLocaltime(&clock, &tmp);
-    printf("%02d:%02d:%02d.%03d", tmp.tm_hour, tmp.tm_min, tmp.tm_sec, (int)(tp->tv_usec/1000));
+    printf("%02d:%02d:%02d.%03d", tmp.tm_hour, tmp.tm_min, tmp.tm_sec, (int)(tp->tv_nsec/1000000));
 }
 
 
@@ -41,8 +41,6 @@ main(int argc, char **argv)
     int		sts;
     int		errflag = 0;
     int		type = 0;
-    int		force = 0;
-    int 	verbose = 0;
     char	*host = NULL;			/* pander to gcc */
     char 	*configfile = (char *)0;
     char 	*logfile = (char *)0;
@@ -54,8 +52,8 @@ main(int argc, char **argv)
     char	*namespace = PM_NS_DEFAULT;
     int		samples = -1;
     int		sample;
-    struct timeval start;
-    double	delta = 1.0;
+    struct timespec start;
+    struct timespec delta = { 1, 0 };
     char	*endnum;
     pmResult	*result;
     int		i;
@@ -63,7 +61,7 @@ main(int argc, char **argv)
 
     pmSetProgname(argv[0]);
 
-    while ((c = getopt(argc, argv, "a:c:D:fl:n:s:t:VzZ:?")) != EOF) {
+    while ((c = getopt(argc, argv, "a:c:D:l:n:s:t:zZ:?")) != EOF) {
 	switch (c) {
 
 	case 'a':	/* archive name */
@@ -92,10 +90,6 @@ main(int argc, char **argv)
 	    }
 	    break;
 
-	case 'f':	/* force */
-	    force++; 
-	    break;	
-
 	case 'h':	/* contact PMCD on this hostname */
 	    if (type != 0) {
 		fprintf(stderr, "%s: at most one of -a and/or -h allowed\n", pmGetProgname());
@@ -122,15 +116,11 @@ main(int argc, char **argv)
 	    break;
 
 	case 't':	/* delta seconds (double) */
-	    delta = strtod(optarg, &endnum);
-	    if (*endnum != '\0' || delta <= 0.0) {
+	    pmtimespecFromReal(strtod(optarg, &endnum), &delta);
+	    if (*endnum != '\0' || delta.tv_sec <= 0.0 || delta.tv_nsec < 0) {
 		fprintf(stderr, "%s: -t requires floating point argument\n", pmGetProgname());
 		errflag++;
 	    }
-	    break;
-
-	case 'V':	/* verbose */
-	    verbose++;
 	    break;
 
 	case 'z':	/* timezone from host */
@@ -169,13 +159,11 @@ Options\n\
   -a   archive	  metrics source is an archive\n\
   -c   configfile file to load configuration from\n\
   -D   debugspec  standard PCP debugging options\n\
-  -f		  force .. \n\
   -h   host	  metrics source is PMCD on host\n\
   -l   logfile	  redirect diagnostics and trace output\n\
   -n   namespace  use an alternative PMNS\n\
   -s   samples	  terminate after this many iterations\n\
   -t   delta	  sample interval in seconds(float) [default 1.0]\n\
-  -V 	          verbose/diagnostic output\n\
   -z              set reporting timezone to local time for host from -a or -h\n\
   -Z   timezone   set reporting timezone\n",
 		pmGetProgname());
@@ -225,7 +213,7 @@ Options\n\
 	}
 	if (type == PM_CONTEXT_ARCHIVE)
 	    printf("Note: timezone set to local timezone of host \"%s\" from archive\n\n",
-		label.ll_hostname);
+		label.hostname);
 	else
 	    printf("Note: timezone set to local timezone of host \"%s\"\n\n", host);
     }
@@ -271,7 +259,7 @@ Options\n\
     }
 
     /* skip the first two seconds, due to staggered start in log */
-    start = label.ll_start;
+    start = label.start;
     start.tv_sec += 2;
 
     printf("Start at: ");
@@ -279,7 +267,7 @@ Options\n\
     printf("\n\n");
 
     printf("Pass One: rewind and fetch metrics_a until end of log\n");
-    if ((sts = pmSetMode(PM_MODE_INTERP, &start, (int)(delta * 1000))) < 0) {
+    if ((sts = pmSetMode(PM_MODE_INTERP, &start, &delta)) < 0) {
 	fprintf(stderr, "%s: pmSetMode: %s\n", pmGetProgname(), pmErrStr(sts));
 	exit(1);
     }
@@ -314,7 +302,7 @@ Options\n\
     }
 
     printf("Pass Two: rewind and fetch metrics_b until end of log\n");
-    if ((sts = pmSetMode(PM_MODE_INTERP, &start, (int)(delta * 1000))) < 0) {
+    if ((sts = pmSetMode(PM_MODE_INTERP, &start, &delta)) < 0) {
 	fprintf(stderr, "%s: pmSetMode: %s\n", pmGetProgname(), pmErrStr(sts));
 	exit(1);
     }

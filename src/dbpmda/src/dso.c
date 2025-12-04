@@ -72,6 +72,7 @@ opendso(char *dso, char *init, int domain)
 	    dispatch.comm.pmda_interface = challenge;
 	    /* set in 2 steps to avoid int to bitfield truncation warnings */
 	    dispatch.comm.pmapi_version = PMAPI_VERSION_2;   /* use oldest */
+	    /* coverity[integer_overflow] */
 	    dispatch.comm.pmapi_version = ~dispatch.comm.pmapi_version;
 	    dispatch.comm.flags = 0;
 	    dispatch.status = 0;
@@ -100,7 +101,7 @@ opendso(char *dso, char *init, int domain)
 		    dlclose(handle);
 		}
 		if (dispatch.comm.pmapi_version != PMAPI_VERSION_2 &&
-		    dispatch.comm.pmapi_version != PMAPI_VERSION_3) {
+		    dispatch.comm.pmapi_version != PMAPI_VERSION_4) {
 		    printf("Error: Unsupported PMAPI version %d returned by DSO \"%s\"\n",
 			   dispatch.comm.pmapi_version, dso);
 		    dispatch.status = -1;
@@ -204,7 +205,7 @@ dodso(int pdu)
     int			length;
     pmDesc		desc;
     pmDesc		*desc_list = NULL;
-    pmResult		*result;
+    pmResult_v2		*result;
     pmLabelSet		*labelset = NULL;
     pmInResult		*inresult;
     int			i;
@@ -269,12 +270,12 @@ dodso(int pdu)
 		    if (desc_list)
 		        _dbDumpResult(stdout, result, desc_list);
                     else
-		        __pmDumpResult(stdout, result);
+		        __pmDumpResult_v2(stdout, result);
 		    /*
 		     * DSO PMDA will manage the pmResult skelton, but
 		     * we need to free the pmValueSets and values here
 		     */
-		    __pmFreeResultValues(result);
+		    __pmFreeResultValues_v2(result);
                 }
 		else {
 		    printf("Error: DSO fetch() failed: %s\n", pmErrStr(sts));
@@ -334,7 +335,7 @@ dodso(int pdu)
 	 
 	    sts = fillValues(result->vset[0], desc.type);
 	    if (sts < 0) {
-		pmFreeResult(result);
+		pmFreeResult_v2(result);
 		return;
 	    }
 
@@ -345,7 +346,7 @@ dodso(int pdu)
 	     * DSO PMDA will manage the pmResult skelton, but
 	     * we need to free the pmValueSets and values here
 	     */
-	    __pmFreeResultValues(result);
+	    __pmFreeResultValues_v2(result);
 
 	    break;
 

@@ -158,6 +158,11 @@ static int tempDriverPriority(const sensors_chip_name* chip) {
       { "cpu5_thermal",       0 },
       { "cpu6_thermal",       0 },
       { "cpu7_thermal",       0 },
+      /* Amlogic S905W */
+      { "scpi_sensors",       0 },
+      /* Snapdragon 410 */
+      { "cpu0_1_thermal",     0 },
+      { "cpu2_3_thermal",     0 },
       /* Low priority drivers */
       { "acpitz",             1 },
    };
@@ -235,7 +240,7 @@ void LibSensors_getCPUTemperatures(CPUData* cpus, unsigned int existingCPUs, uns
 
       topPriority = priority;
 
-      int physicalID = -1;
+      int physicalID = 0;
 
       int m = 0;
       for (const sensors_feature* feature = sym_sensors_get_features(chip, &m); feature; feature = sym_sensors_get_features(chip, &m)) {
@@ -307,6 +312,33 @@ void LibSensors_getCPUTemperatures(CPUData* cpus, unsigned int existingCPUs, uns
                coreTempCount += 4;
                continue;
             }
+         }
+
+         /* Snapdragon 410 */
+         if (existingCPUs == 4) {
+            if (String_eq(chip->prefix, "cpu0_1_thermal")) {
+               data[1] = temp;
+               data[2] = temp;
+               coreTempCount += 2;
+               continue;
+            }
+            if (String_eq(chip->prefix, "cpu2_3_thermal")) {
+               data[3] = temp;
+               data[4] = temp;
+               coreTempCount += 2;
+               continue;
+            }
+         }
+
+         /* Amlogic S905W */
+         if (String_eq(chip->prefix, "scpi_sensors")) {
+            // Package temperature - assign to ALL cores and package
+            for (size_t i = 0; i <= existingCPUs; i++) {
+               data[i] = temp;
+            }
+
+            coreTempCount = existingCPUs;
+            continue;
          }
 
          char *label = sym_sensors_get_label(chip, feature);

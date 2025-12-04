@@ -30,7 +30,7 @@ to accommodate the most complex system configurations and performance
 problems.
 .PP
 PCP supports many different platforms, including (but not limited
-to) Linux, MacOSX, Solaris and Windows.
+to) Linux, macOS, Solaris and Windows.
 From a high-level PCP can be considered to contain two classes of
 software utility:
 .IP "\fIPCP Collectors\fR" 8
@@ -152,6 +152,7 @@ There is a set of common command line arguments that are used consistently
 by most PCP tools.
 .TP
 \fB\-a\fR \fIarchive\fR, \fB\-\-archive\fR=\fIarchive\fR
+.RS
 Performance metric information is retrospectively retrieved
 from the set of Performance Co-Pilot (PCP) archives identified by
 .IR archive
@@ -162,7 +163,6 @@ See
 and
 .BR LOGARCHIVE (5)
 for archive creation interfaces and format documentation.
-.RS
 .PP
 .I archive
 is a comma-separated list of names, each
@@ -205,6 +205,7 @@ etc.
 .RE
 .TP
 \fB\-h\fR \fIhost\fR, \fB\-\-host\fR=\fIhost\fR
+.RS
 Unless directed to another host by the
 .B \-h
 (or
@@ -247,8 +248,10 @@ is 0 or
 is not specified, the application
 will sample and report continuously (in real time mode) or until the end
 of the set of PCP archives (in archive mode).
+.RE
 .TP
 \fB\-z\fR, \fB\-\-hostzone\fR
+.RS
 Change the reporting timezone to the local timezone at the
 host that is the source of the performance metrics, as identified via
 either the
@@ -260,8 +263,10 @@ or
 (or
 .BR \-\-archive )
 options.
+.RE
 .TP
 \fB\-Z\fR \fItimezone\fR, \fB\-\-timezone\fR=\fItimezone\fR
+.RS
 By default, applications
 report the time of day according to the local timezone on the
 system where
@@ -276,8 +281,10 @@ in the format of the environment variable
 .B TZ
 as described in
 .BR environ (7).
+.RE
 .TP
 \fB\-D\fR \fIdebugspec\fR, \fB\-\-debug\fR=\fIdebugspec\fR
+.RS
 Sets the PCP debugging options to
 .I debugspec
 to enable diagnostics and tracing that is most helpful for developers or
@@ -304,6 +311,7 @@ option, but a typical invocation in this mode would be
 .B "\-O today"
 or
 .BR "\-\-origin yesterday" .
+.RE
 .SH INTERVAL SPECIFICATION AND ALIGNMENT
 Most PCP tools operate with periodic sampling or
 reporting, and the
@@ -1009,7 +1017,7 @@ User-specific directories containing configuration files for
 customisation of the various monitor tools, such as
 .BR pmchart (1).
 .TP
-.I $PCP_RC_DIR/pcp
+.I $PCP_RC_DIR/pmcd
 Script for starting and stopping
 .BR pmcd (1).
 .TP
@@ -1021,7 +1029,7 @@ Control file for
 Command line options passed to
 .BR pmcd (1)
 when it is started from
-.BR $PCP_RC_DIR/pcp .
+.BR $PCP_RC_DIR/pmcd .
 All the command line option lines should start with a hyphen as
 the first character.
 This file can also contain environment variable settings of
@@ -1069,8 +1077,11 @@ PMDA starts, stops, additions and removals.
 .I $PCP_VAR_DIR/config
 Contains directories of configuration files for several PCP tools.
 .TP
-.I $PCP_SYSCONF_DIR/pmcd/rc.local
+.I $PCP_SERVICES_DIR/local
 Local script for controlling PCP boot, shutdown and restart actions.
+This was formerly located in
+.I $PCP_SYSCONF_DIR/pmcd/rc.local
+and a symbolic link is installed for that name to provide compatibility.
 .TP
 .I $PCP_VAR_DIR/pmns
 Directory containing the set of PMNS files for all installed PMDAs.
@@ -1099,7 +1110,7 @@ via
 Control file for
 .BR pmlogger (1)
 instances launched from
-.B $PCP_RC_DIR/pcp
+.B $PCP_RC_DIR/pmlogger
 and/or managed by
 .BR pmlogger_check (1)
 and
@@ -1181,8 +1192,7 @@ is a directory then recursive descent is used to enumerate all
 files below that directory and these are added to the list.
 .RS
 .PP
-Each file in the resulting list is assumed to
-contain
+Each file in the resulting list is assumed to contain
 definitions of derived metrics as per the syntax described in
 .BR pmLoadDerivedConfig (3),
 and these are loaded in order.
@@ -1276,7 +1286,6 @@ If
 .B PCP_STDERR
 is set to any other value, the value is assumed to
 be a filename, and all messages will be written there.
-.RE
 .TP
 .B PMCD_CONNECT_TIMEOUT
 When attempting to connect to a remote
@@ -1341,29 +1350,15 @@ for all applications.
 When
 .BR pmcd (1)
 is started from
-.B $PCP_RC_DIR/pcp
-then the primary instance of
-.BR pmlogger (1)
-will be started if the configuration flag
-.B pmlogger
-is
-.BR chkconfig (8)
-or
-.BR systemctl (1)
-enabled and
-.B pmcd
-is running and accepting connections.
-.RS
-.PP
-The check on
+.B $PCP_RC_DIR/pmcd
+the check on
 .BR pmcd 's
 readiness will wait up to
 .B PMCD_WAIT_TIMEOUT
 seconds.
 If
 .B pmcd
-has a long startup time (such as on a very large
-system), then
+has a long startup time (such as on a very large system), then
 .B PMCD_WAIT_TIMEOUT
 can be set to provide a maximum wait longer than the default 60 seconds.
 .RE
@@ -1586,7 +1581,7 @@ which can be found at
 
 .\" control lines for scripts/man-spell
 .\" +ok+ ACLs AuthenticatedConnections DD EST EncryptedConnections
-.\" +ok+ HH Inet MacOSX OpenSSL PCP_ALLOW_BAD_CERT_DOMAIN
+.\" +ok+ HH Inet macOS OpenSSL PCP_ALLOW_BAD_CERT_DOMAIN
 .\" +ok+ PCP_ALLOW_SERVER_SELF_CERT PCP_CONSOLE
 .\" +ok+ PCP_IGNORE_MARK_RECORDS PCP_SECURE_SOCKETS
 .\" +ok+ PMDA_LOCAL_PROC

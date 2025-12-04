@@ -80,6 +80,8 @@ endif
 ifeq "$(TARGET_OS)" "darwin"
 DSOSUFFIX = dylib
 CASE_INSENSITIVE_FS = yes
+# make space for $PCP_LIB_DIR
+LDFLAGS += -Wl,-headerpad -Wl,64
 endif
 ifeq "$(TARGET_OS)" "mingw"
 DSOSUFFIX = dll
@@ -88,6 +90,9 @@ SHELLSUFFIX = .sh
 PLDLIBS = -lwsock32 -liphlpapi
 endif
 ifeq "$(TARGET_OS)" "solaris"
+# enables standards compliant thread-safe interfaces and 2-arg form of
+# ctime_r()
+CFLAGS += -D_POSIX_PTHREAD_SEMANTICS
 PLDFLAGS += -fPIC
 PLDLIBS = -lnsl -lsocket -lresolv -ldl -lposix4
 DSOSUFFIX = so
@@ -184,9 +189,8 @@ GREP    = @grep@
 GIT	= @GIT@
 # man-lint should not break the build (-f)
 MANLINT	= $(TOPDIR)/scripts/man-lint -f
-PYLINT	= @PYLINT@ --rcfile=$(TOPDIR)/.pylintrc --output-format=colorized
+PYLINT	= PYTHONPATH=$(PYTHONPATH):$(TOPDIR)/src/python @PYLINT@ --rcfile=$(TOPDIR)/.pylintrc --output-format=colorized
 PYTHON3	= @PYTHON3@
-DTRACE  = @DTRACE@
 ifeq "$(TARGET_OS)" "freebsd"
 QMAKE	= @qmake@
 else
@@ -222,7 +226,7 @@ MKINSTALLP = @mkinstallp@
 DLLTOOL = @dlltool@
 RPMBUILD= @rpmbuild@
 RPM	= @rpm@
-POD2MAN = @pod2man@
+POD2MAN = @pod2man@ --fixed=CR
 DPKG	= @dpkg@
 MAKEPKG	= @makepkg@
 GENPMDA	= $(TOPDIR)/src/genpmda/genpmda
@@ -258,9 +262,9 @@ QT_VERSION = @qt_version@
 CLANG_MAJOR_VERSION = @CLANG_MAJOR_VERSION@
 
 # configuration state affecting the entire build
+ENABLE_MULTILIB = @enable_multilib@
 ENABLE_SHARED = @enable_shared@
 ENABLE_SECURE = @enable_secure@
-ENABLE_PROBES = @enable_probes@
 ENABLE_AVAHI = @enable_avahi@
 ENABLE_DSTAT = @enable_dstat@
 ENABLE_QT = @enable_qt@
@@ -274,6 +278,9 @@ ENABLE_LZMA = @enable_lzma@
 # for code supporting any modern version of perl
 HAVE_PERL = @have_perl@
 
+# optonal perl modules
+HAVE_PERL_RRDs = @have_perl_rrds@
+
 # for code supporting any modern version of python3
 HAVE_PYTHON = @have_python@
 
@@ -281,7 +288,6 @@ HAVE_PYTHON = @have_python@
 HAVE_PYTHON_SIX = @have_python_six@
 HAVE_PYTHON_REQUESTS = @have_python_requests@
 HAVE_PYTHON_SETUPTOOLS = @have_python_setuptools@
-HAVE_PYTHON_JSONPOINTER = @have_python_jsonpointer@
 HAVE_PYTHON_ORDEREDDICT = @have_python_OrderedDict@
 HAVE_PYTHON_INFLUXDB = @have_python_influxdb@
 HAVE_PYTHON_OPENPYXL = @have_python_openpyxl@
@@ -311,9 +317,6 @@ HAVE_LIBUV = @HAVE_LIBUV@
 LIB_FOR_LIBUV = @libuv_LIBS@
 HAVE_LIBINIH = @HAVE_LIBINIH@
 LIB_FOR_INIH = @lib_for_inih@
-HAVE_LIBBPF = @HAVE_LIBBPF@
-LIBBPF_VERSION = @libbpf_version@
-LIB_FOR_LIBBPF = @libbpf_LIBS@
 HAVE_LIBELF = @HAVE_LIBELF@
 LIB_FOR_LIBELF = @libelf_LIBS@
 HAVE_NCURSES = @HAVE_NCURSES@
@@ -345,7 +348,6 @@ IB_LIBS = @IB_LIBS@
 PMDA_BCC = @PMDA_BCC@
 PMDA_BPF = @PMDA_BPF@
 PMDA_BPFTRACE = @PMDA_BPFTRACE@
-PMDA_JSON = @PMDA_JSON@
 PMDA_GFS2 = @PMDA_GFS2@
 PMDA_STATSD = @PMDA_STATSD@
 PMDA_LIBVIRT = @PMDA_LIBVIRT@
@@ -353,6 +355,7 @@ PMDA_SYSTEMD = @PMDA_SYSTEMD@
 PMDA_PERFEVENT = @PMDA_PERFEVENT@
 PMDA_INFINIBAND = @PMDA_INFINIBAND@
 PMDA_OPENMETRICS = @PMDA_OPENMETRICS@
+PMDA_OPENTELEMETRY = @PMDA_OPENTELEMETRY@
 PMDA_ELASTICSEARCH = @PMDA_ELASTICSEARCH@
 PMDA_MYSQL = @PMDA_MYSQL@
 PMDA_ORACLE = @PMDA_ORACLE@
@@ -434,6 +437,17 @@ BEGIN	{ print "$$mapfile_version 2"; print } \
 	{ print }'
 else
 EXPORTS_MAKERULE =
+endif
+
+# MacOS requires the installed library paths be stamped into binaries
+ifeq "$(TARGET_OS)" "darwin"
+
+LINKER_MAKERULE = \
+    for lib in `otool -L $@ | ${AWK} '/libpcp/ {print $$1}'`; do \
+        install_name_tool -change $$lib $(PCP_LIB_DIR)/$$lib $@; \
+    done
+else
+LINKER_MAKERULE =
 endif
 
 # prepare domain.h used during the PMDA build process for each PMDA

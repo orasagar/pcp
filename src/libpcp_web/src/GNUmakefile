@@ -75,11 +75,11 @@ endif
 LCFLAGS += $(C99_CFLAGS) -DJSMN_PARENT_LINKS=1 -DJSMN_STRICT=1 -DHTTP_PARSER_STRICT=0 -Ideps
 
 ifeq "$(HAVE_LIBUV)" "true"
-CFILES += discover.c webgroup.c timer.c
+CFILES += discover.c loggroup.c webgroup.c timer.c
 LCFLAGS += $(LIBUVCFLAGS) -DHAVE_LIBUV=1
 LLDLIBS += $(LIB_FOR_LIBUV)
 else
-CFILES += nodiscover.c nowebgroup.c notimer.c
+CFILES += nodiscover.c nologgroup.c nowebgroup.c notimer.c
 endif
 
 ifeq "$(HAVE_LIBINIH)" "true"
@@ -113,12 +113,12 @@ SYMTARGET =
 endif
 
 VERSION_SCRIPT = exports
-LDIRT = $(XFILES) $(YFILES) $(HIREDIS_XFILES) $(HIREDIS_CLUSTER_XFILES) $(SYMTARGET) $(YFILES:%.y=%.tab.?)
+LDIRT = $(XFILES) $(YFILES) $(HIREDIS_XFILES) $(HIREDIS_CLUSTER_XFILES) $(SYMTARGET) $(YFILES:%.y=%.tab.?) exports
 ifneq "$(HAVE_LIBINIH)" "true"
 	LDIRT += $(INIH_XFILES)
 endif
 
-default: $(XFILES) $(HIREDIS_XFILES) $(HIREDIS_CLUSTER_XFILES) $(INIH_XFILES) $(LIBTARGET) $(SYMTARGET) $(STATICLIBTARGET)
+default: exports $(XFILES) $(HIREDIS_XFILES) $(HIREDIS_CLUSTER_XFILES) $(INIH_XFILES) $(LIBTARGET) $(SYMTARGET) $(STATICLIBTARGET)
 
 include $(BUILDRULES)
 
@@ -175,6 +175,9 @@ discover.o:	discover.h discover.c
 http_parser.o:	http_parser.c http_parser.h
 query.o:	query.h query.c query_parser.y
 http_client.o load.o query.o:	$(TOPDIR)/src/include/pcp/libpcp.h
+
+exports: exports.in ../../libpcp/src/mk.exports
+	../../libpcp/src/mk.exports
 
 debug:
 	@echo TARGET_OS=$(TARGET_OS)

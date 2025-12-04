@@ -5,17 +5,18 @@ Homepage: https://pcp.io
 Maintainer: PCP Development Team <pcp@groups.io>
 Uploaders: Nathan Scott <nathans@debian.org>, Ken McDonell <kenj@kenj.id.au>
 Rules-Requires-Root: no
-Build-Depends: bison, flex, gawk, procps, pkg-config, debhelper (>= 5), ?{perl (>= 5.6)}, libreadline-dev | libreadline5-dev | libreadline-gplv2-dev, chrpath, libbsd-dev [kfreebsd-any], libkvm-dev [kfreebsd-any], ?{python-all}, ?{python-dev}, python3-dev, python3-setuptools, libsasl2-dev, ?{libuv1-dev}, ?{libssl-dev}, libavahi-common-dev, ?{qt-dev}, autotools-dev, zlib1g-dev, autoconf, ?{libclass-dbi-perl}, ?{libdbd-mysql-perl}, ?{python-psycopg2}, ?{python-openpyxl}, ?{dh-python}, ?{libpfm4-dev}, libncurses5-dev, ?{python-six}, ?{python-json-pointer}, ?{python-requests}, ?{libextutils-autoinstall-perl}, ?{libxml-tokeparser-perl}, ?{librrds-perl}, ?{libjson-perl}, ?{libwww-perl}, ?{libnet-snmp-perl}, ?{liblzma-dev}, ?{libsystemd-dev}, ?{python-bpfcc}, ?{bpftrace}, ?{clang}, ?{llvm}, ?{libbpf-dev}, ?{libibumad-dev}, ?{libibmad-dev}, ?{libinih-dev}, ?{postfix}, ?{libxml-libxml-perl}, ?{libfile-slurp-perl}, ?{libyaml-libyaml-perl}, ?{python-rtslib-fb}, ?{python-libvirt}, ?{python-lxml}, ?{libdrm-dev}, ?{python-pymongo}, ?{python-urllib3}, ?{libdbi-perl}, ?{python-pyodbc}, manpages
+Build-Depends: bison, flex, gawk, procps, pkg-config, debhelper (>= 11), ?{perl (>= 5.6)}, libreadline-dev | libreadline5-dev | libreadline-gplv2-dev, chrpath, libbsd-dev [kfreebsd-any], libkvm-dev [kfreebsd-any], ?{python-all}, ?{python-dev}, python3-setuptools, libsasl2-dev, ?{libuv1-dev}, ?{libssl-dev}, libavahi-common-dev, ?{qt-dev}, autotools-dev, zlib1g-dev, autoconf, ?{libclass-dbi-perl}, ?{libdbd-mysql-perl}, ?{python-psycopg2}, ?{python-openpyxl}, ?{dh-python}, ?{libpfm4-dev}, libncurses5-dev, ?{python-six}, ?{python-requests}, ?{libextutils-autoinstall-perl}, ?{libxml-tokeparser-perl}, ?{libjson-perl}, ?{libwww-perl}, ?{libnet-snmp-perl}, ?{liblzma-dev}, ?{systemd-pkgconfig}, ?{libsystemd-dev}, ?{python-bpfcc}, ?{bpftrace}, ?{clang}, ?{llvm}, ?{libibumad-dev}, ?{libibmad-dev}, ?{libibverbs-dev}, ?{libinih-dev}, ?{postfix}, ?{libxml-libxml-perl}, ?{libfile-slurp-perl}, ?{libyaml-libyaml-perl}, ?{python-rtslib-fb}, ?{python-libvirt}, ?{python-lxml}, ?{libdrm-dev}, ?{python-pymongo}, ?{python-urllib3}, ?{libdbi-perl}, ?{python-pyodbc}, ?{perl-xs-dev}, manpages
 Standards-Version: 4.7.2
 X-Python3-Version: >= 3.6
 
 Package: pcp
-Depends: ${shlibs:Depends}, ${misc:Depends}, gawk, procps, ?{python-pcp}, ?{python}, libpcp-pmda3 (= ${binary:Version}), libpcp-mmv1 (= ${binary:Version}), libpcp-web1 (= ${binary:Version}), libpcp-archive1 (= ${binary:Version}), libpcp3 (= ${binary:Version}), pcp-conf (= ${binary:Version})
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${perl:Depends}, gawk, procps, zstd, ?{python-pcp}, ?{python}, libpcp-pmda3 (= ${binary:Version}), libpcp-mmv1 (= ${binary:Version}), libpcp-web1 (= ${binary:Version}), libpcp-archive1 (= ${binary:Version}), libpcp4 (= ${binary:Version}), pcp-conf (= ${binary:Version})
 Recommends: libpcp-pmda-perl
 Conflicts: pgpool2, dstat, pcp-webapi, pcp-manager
-Suggests: pcp-gui, libpcp-import-perl, ?{bpftrace}, ?{python-bpfcc}, redis-server, zstd
+Suggests: pcp-gui, libpcp-import-perl, ?{bpftrace}, ?{python-bpfcc}, redis-server
 Provides: dstat, pcp-webapi, pcp-manager
 Replaces: dstat, pcp-webapi, pcp-manager
+Breaks: pcp-doc (<< 7.1.0)
 Architecture: any
 Description: System level performance monitoring and performance management
  Performance Co-Pilot (PCP) is a framework and services to
@@ -43,14 +44,14 @@ Description: Performance Co-Pilot runtime configuration
  client applications to easily retrieve and process any subset of
  that data.
 
-Package: libpcp3-dev
+Package: libpcp4-dev
 Section: libdevel
-Depends: ${misc:Depends}, libpcp3 (= ${binary:Version}), libc6-dev | libc-dev
+Depends: ${misc:Depends}, libpcp4 (= ${binary:Version}), libc6-dev | libc-dev
 Breaks: pcp (<< 4.3.4), libpcp-gui2-dev (<< 3.11.10~), pcp-webapi (<< 5.0.0), pcp-manager (<< 5.2.0)
 Replaces: libpcp-gui2-dev (<< 3.11.10~), pcp-webapi (<< 5.0.0), pcp-manager (<< 5.2.0)
 Architecture: any
 Description: Performance Co-Pilot library and headers
- The libpcp-dev package contains the base Performance Co-Pilot (PCP)
+ The libpcp4-dev package contains the base Performance Co-Pilot (PCP)
  library and header files needed to develop collector and monitor
  programs which make use of PCP services.
  .
@@ -59,15 +60,23 @@ Description: Performance Co-Pilot library and headers
  client applications to easily retrieve and process any subset of
  that data.
 
-Package: libpcp3
+Package: libpcp3-dev
+Depends: libpcp4-dev, ${misc:Depends}
+Architecture: any
+Priority: optional
+Section: oldlibs
+Description: transitional package
+ This is a transitional package. It can safely be removed once
+ /usr/lib/libpcp.so.3 is no longer needed.
+
+Package: libpcp4
 Depends: ${shlibs:Depends}, ${misc:Depends}, pcp-conf (= ${binary:Version})
 Conflicts: pgpool2
-Breaks: pcp (<< 2.8.0), libpcp3-dev (<< 2.8.5), libpcp3t64 (<< 6.3.2)
-Replaces: libpcp3t64 (<< 6.3.2)
+Breaks: pcp (<< 2.8.0), libpcp3-dev (<< 2.8.5)
 Section: libs
 Architecture: any
 Description: Performance Co-Pilot library
- The libpcp package contains the runtime environment required by
+ The libpcp4 package contains the runtime environment required by
  programs that make use of Performance Co-Pilot (PCP) services.
  .
  The Performance Co-Pilot provides a unifying abstraction for
@@ -75,13 +84,22 @@ Description: Performance Co-Pilot library
  client applications to easily retrieve and process any subset of
  that data.
 
+Package: libpcp3
+Depends: libpcp4, ${shlibs:Depends}, ${misc:Depends}
+Architecture: any
+Priority: optional
+Section: oldlibs
+Description: transitional package
+ This is a transitional package. It can safely be removed once libpcp4
+ is installed.
+
 Package: libpcp-gui2-dev
 Section: libdevel
-Depends: ${misc:Depends}, libpcp-gui2 (= ${binary:Version}), libpcp3 (= ${binary:Version})
+Depends: ${misc:Depends}, libpcp-gui2 (= ${binary:Version}), libpcp4 (= ${binary:Version})
 Conflicts: libpcp-gui1-dev
 Architecture: any
 Description: Performance Co-Pilot graphical client tools library and headers
- The libpcp-gui-dev package contains the Performance Co-Pilot (PCP)
+ The libpcp-gui2-dev package contains the Performance Co-Pilot (PCP)
  library and header files needed to incorporate graphical time control
  (pmtime) into a monitoring application.
  .
@@ -92,12 +110,10 @@ Description: Performance Co-Pilot graphical client tools library and headers
 
 Package: libpcp-gui2
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Breaks: libpcp-gui2t64 (<< 6.3.2)
-Replaces: libpcp-gui2t64 (<< 6.3.2)
 Section: libs
 Architecture: any
 Description: Performance Co-Pilot graphical client tools library
- The libpcp-gui package contains the runtime environment required by any
+ The libpcp-gui2 package contains the runtime environment required by any
  monitoring tool that makes use of the time control services of pmtime(1).
  .
  The Performance Co-Pilot provides a unifying abstraction for
@@ -107,10 +123,10 @@ Description: Performance Co-Pilot graphical client tools library
 
 Package: libpcp-mmv1-dev
 Section: libdevel
-Depends: ${misc:Depends}, libpcp-mmv1 (= ${binary:Version}), libpcp3 (= ${binary:Version})
+Depends: ${misc:Depends}, libpcp-mmv1 (= ${binary:Version}), libpcp4 (= ${binary:Version})
 Architecture: any
 Description: Performance Co-Pilot Memory Mapped Value library and headers
- The libpcp-mmv-dev package contains the Performance Co-Pilot (PCP)
+ The libpcp-mmv1-dev package contains the Performance Co-Pilot (PCP)
  library and header files needed to utilise memory mapped value
  instrumentation into a monitored application.
  .
@@ -121,12 +137,10 @@ Description: Performance Co-Pilot Memory Mapped Value library and headers
 
 Package: libpcp-mmv1
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Breaks: libpcp-mmv1t64 (<< 6.3.2)
-Replaces: libpcp-mmv1t64 (<< 6.3.2)
 Section: libs
 Architecture: any
 Description: Performance Co-Pilot Memory Mapped Value client library
- The libpcp-mmv package contains the runtime environment required by an
+ The libpcp-mmv1 package contains the runtime environment required by an
  application that utilises Memory Mapped Value instrumentation to export
  runtime instrumentation into the Performance Co-Pilot infrastructure.
  .
@@ -137,12 +151,12 @@ Description: Performance Co-Pilot Memory Mapped Value client library
 
 Package: libpcp-pmda3-dev
 Section: libdevel
-Depends: ${misc:Depends}, libpcp-pmda3 (= ${binary:Version}), libpcp3 (= ${binary:Version})
+Depends: ${misc:Depends}, libpcp-pmda3 (= ${binary:Version}), libpcp4 (= ${binary:Version})
 Breaks: pcp (<< 2.8.0), libpcp3-dev (<< 3.11.10~)
 Replaces: libpcp3-dev (<< 3.11.10~)
 Architecture: any
 Description: Performance Co-Pilot Domain Agent library and headers
- The libpcp-pmda-dev package contains the Performance Co-Pilot (PCP)
+ The libpcp-pmda3-dev package contains the Performance Co-Pilot (PCP)
  library and header files needed to develop Performance Metric Domain
  Agents (PMDAs).  Each PMDA exports performance data for one domain;
  for example the operating system kernel, Cisco routers, a database,
@@ -155,23 +169,21 @@ Description: Performance Co-Pilot Domain Agent library and headers
 
 Package: libpcp-pmda3
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Breaks: libpcp-pmda3t64 (<< 6.3.2)
-Replaces: libpcp-pmda3t64 (<< 6.3.2)
 Section: libs
 Architecture: any
 Description: Performance Co-Pilot Domain Agent library
- The libpcp-pmda package contains the runtime environment required by
+ The libpcp3-pmda package contains the runtime environment required by
  a Performance Metric Domain Agent (PMDA).  A PMDA exports performance
  data for one specific domain, for example the operating system kernel,
  DNS, SMTP, Cisco router, a database, an application, etc.
 
 Package: libpcp-trace2-dev
 Section: libdevel
-Depends: ${misc:Depends}, libpcp-trace2 (= ${binary:Version}), libpcp3 (= ${binary:Version})
+Depends: ${misc:Depends}, libpcp-trace2 (= ${binary:Version}), libpcp4 (= ${binary:Version})
 Breaks: pcp (<< 2.8.0)
 Architecture: any
 Description: Performance Co-Pilot application tracing library and headers
- The libpcp-trace-dev package contains the Performance Co-Pilot (PCP)
+ The libpcp-trace2-dev package contains the Performance Co-Pilot (PCP)
  library and header files needed to directly instrument an application
  for event and value tracking by the pmdatrace(1) PCP Trace Performance
  Metric Domain Agent.
@@ -183,12 +195,10 @@ Description: Performance Co-Pilot application tracing library and headers
 
 Package: libpcp-trace2
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Breaks: libpcp-trace2t64 (<< 6.3.2)
-Replaces: libpcp-trace2t64 (<< 6.3.2)
 Section: libs
 Architecture: any
 Description: Performance Co-Pilot application tracing library
- The libpcp-trace package contains the runtime environment required by
+ The libpcp-trace2 package contains the runtime environment required by
  an application that is directly instrumented for event and value
  tracking by pmdatrace(3), the Trace Performance Metric Domain Agent.
  .
@@ -199,10 +209,10 @@ Description: Performance Co-Pilot application tracing library
 
 Package: libpcp-import1-dev
 Section: libdevel
-Depends: ${misc:Depends}, libpcp-import1 (= ${binary:Version}), libpcp3-dev
+Depends: ${misc:Depends}, libpcp-import1 (= ${binary:Version}), libpcp4-dev
 Architecture: any
 Description: Performance Co-Pilot data import library and headers
- The libpcp-import-dev package contains the library and header files
+ The libpcp-import1-dev package contains the library and header files
  needed to build an application that imports performance data from
  a file or real-time source and creates a Performance Co-Pilot (PCP)
  archive suitable for use with the PCP tools.
@@ -214,12 +224,10 @@ Description: Performance Co-Pilot data import library and headers
 
 Package: libpcp-import1
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Breaks: libpcp-import1t64 (<< 6.3.2)
-Replaces: libpcp-import1t64 (<< 6.3.2)
 Section: libs
 Architecture: any
 Description: Performance Co-Pilot data import library
- The libpcp-import package contains the runtime environment required
+ The libpcp-import1 package contains the runtime environment required
  by an application that imports performance data from a file or
  real-time source and creates a Performance Co-Pilot (PCP) archive
  suitable for use with the PCP tools.
@@ -231,10 +239,10 @@ Description: Performance Co-Pilot data import library
  
 Package: libpcp-web1-dev
 Section: libdevel
-Depends: ${misc:Depends}, libpcp-web1 (= ${binary:Version}), libpcp3-dev
+Depends: ${misc:Depends}, libpcp-web1 (= ${binary:Version}), libpcp4-dev
 Architecture: any
 Description: Performance Co-Pilot web tooling
- The libpcp-web-dev package contains the library and header files
+ The libpcp-web1-dev package contains the library and header files
  needed to build a PMDA which parses and extracts metric data from
  a JSON file.
  .
@@ -245,12 +253,10 @@ Description: Performance Co-Pilot web tooling
 
 Package: libpcp-web1
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Breaks: libpcp-web1t64 (<< 6.3.2)
-Replaces: libpcp-web1t64 (<< 6.3.2)
 Section: libs
 Architecture: any
 Description: Performance Co-Pilot data import library
- The libpcp-web package contains the runtime environment required
+ The libpcp-web1 package contains the runtime environment required
  by a PMDA to parse and extract metric data from a JSON file.
  .
  The Performance Co-Pilot provides a unifying abstraction for
@@ -260,10 +266,10 @@ Description: Performance Co-Pilot data import library
 
 Package: libpcp-archive1-dev
 Section: libdevel
-Depends: ${misc:Depends}, libpcp-archive1 (= ${binary:Version}), libpcp3-dev
+Depends: ${misc:Depends}, libpcp-archive1 (= ${binary:Version}), libpcp4-dev
 Architecture: any
 Description: Performance Co-Pilot archive writing library and headers
- The libpcp-archive-dev package contains the library and header files
+ The libpcp-archive1-dev package contains the library and header files
  needed to build an application that creates a Performance Co-Pilot
  (PCP) archive suitable for use with the PCP tools.
  .
@@ -274,12 +280,11 @@ Description: Performance Co-Pilot archive writing library and headers
 
 Package: libpcp-archive1
 Depends: ${misc:Depends}, ${shlibs:Depends}
-Breaks: pcp (<< 6.0.1), libpcp-archive1t64 (<< 6.3.2)
-Replaces: libpcp-archive1t64 (<< 6.3.2)
+Breaks: pcp (<< 6.0.1)
 Section: libs
 Architecture: any
 Description: Performance Co-Pilot archive writing library
- The libpcp-archive package contains the runtime environment required
+ The libpcp-archive1 package contains the runtime environment required
  by an application that creates a Performance Co-Pilot (PCP) archive
  suitable for use with the PCP tools.
  .
@@ -297,7 +302,7 @@ Description: Tool for importing data from collectl into PCP archive logs
  (such as pmie, pmlogsummary, pmchart or pmdumptext).
 
 Package: pcp-export-pcp2elasticsearch
-Depends: ?{python-pcp}, ?{python-requests}, ${python:Depends}, ${misc:Depends}, ${shlibs:Depends}
+Depends: ?{python-pcp}, ?{python-requests}, ${python3:Depends}, ${misc:Depends}
 Breaks: pcp (<< 5.3.0)
 Replaces: pcp (<< 5.3.0)
 Architecture: any
@@ -306,7 +311,7 @@ Description: Tool for exporting data from PCP to Elasticsearch
  into designated Elasticsearch instances.
 
 Package: pcp-export-pcp2graphite
-Depends: ?{python-pcp}, ${python:Depends}, ${misc:Depends}, ${shlibs:Depends}
+Depends: ?{python-pcp}, ${python3:Depends}, ${misc:Depends}
 Breaks: pcp (<< 5.2.4)
 Architecture: any
 Description: Tool for exporting data from PCP to Graphite
@@ -314,7 +319,7 @@ Description: Tool for exporting data from PCP to Graphite
  into designated Graphite (Carbon/Whisper) databases.
 
 Package: pcp-export-pcp2influxdb
-Depends: ?{python-pcp}, ?{python-requests}, ${python:Depends}, ${misc:Depends}, ${shlibs:Depends}
+Depends: ?{python-pcp}, ?{python-requests}, ${python3:Depends}, ${misc:Depends}
 Breaks: pcp (<< 5.2.4)
 Architecture: any
 Description: Tool for exporting data from PCP to InfluxDB
@@ -322,7 +327,7 @@ Description: Tool for exporting data from PCP to InfluxDB
  to InfluxDB (https://influxdata.com/time-series-platform/influxdb).
 
 Package: pcp-export-pcp2json
-Depends: ?{python-pcp}, ${python:Depends}, ${misc:Depends}, ${shlibs:Depends}
+Depends: ?{python-pcp}, ${python3:Depends}, ${misc:Depends}
 Breaks: pcp (<< 5.3.0)
 Replaces: pcp (<< 5.3.0)
 Architecture: any
@@ -331,7 +336,7 @@ Description: Tool for exporting data from PCP to JSON
  in JSON format.
 
 Package: pcp-export-pcp2spark
-Depends: ?{python-pcp}, ?{python-requests}, ${python:Depends}, ${misc:Depends}, ${shlibs:Depends}
+Depends: ?{python-pcp}, ?{python-requests}, ${python3:Depends}, ${misc:Depends}
 Breaks: pcp (<< 5.3.0)
 Replaces: pcp (<< 5.3.0)
 Architecture: any
@@ -340,7 +345,7 @@ Description: Tool for exporting data from PCP to Apache Spark
  to Apache Spark (https://spark.apache.org).
 
 Package: pcp-export-pcp2xml
-Depends: ?{python-pcp}, ${python:Depends}, ${misc:Depends}, ${shlibs:Depends}
+Depends: ?{python-pcp}, ${python3:Depends}, ${misc:Depends}
 Breaks: pcp (<< 5.3.0)
 Replaces: pcp (<< 5.3.0)
 Architecture: any
@@ -349,7 +354,7 @@ Description: Tool for exporting data from PCP to XML
  in XML format.
 
 Package: pcp-export-pcp2zabbix
-Depends: ?{python-pcp}, ${python:Depends}, ${misc:Depends}, ${shlibs:Depends}
+Depends: ?{python-pcp}, ${python3:Depends}, ${misc:Depends}
 Breaks: pcp (<< 5.3.0)
 Replaces: pcp (<< 5.3.0)
 Architecture: any
@@ -367,8 +372,8 @@ Description: Module for exporting PCP metrics to Zabbix agent
 Package: pcp-doc
 Section: doc
 Depends: ${misc:Depends}
-Breaks: pcp (<< 5.3.0), pcp-gui (<< 1.5.13)
-Replaces: pcp (<< 5.3.0), pcp-gui (<< 1.5.13)
+Breaks: pcp (<< 7.1.0), pcp-gui (<< 1.5.13)
+Replaces: pcp (<< 7.1.0), pcp-gui (<< 1.5.13)
 Suggests: pcp, pcp-gui
 Architecture: all
 Description: Documentation and tutorial for the Performance Co-Pilot
@@ -379,7 +384,7 @@ Description: Documentation and tutorial for the Performance Co-Pilot
  PCP utilities and daemons, and the PCP graphical tools.
 
 Package: pcp-zeroconf
-Depends: ${misc:Depends}, ${shlibs:Depends}, pcp (= ${binary:Version})
+Depends: ${misc:Depends}, pcp (= ${binary:Version})
 Breaks: pcp (<< 6.2.1)
 Replaces: pcp (<< 6.2.1)
 Architecture: any
@@ -389,7 +394,7 @@ Description: Performance Co-Pilot (PCP) Zeroconf Package
  diagnosis, alerting and self-healing for the localhost.
 
 Package: pcp-testsuite
-Depends: ${misc:Depends}, ${shlibs:Depends}, time, pcp (= ${binary:Version}), python3
+Depends: ${misc:Depends}, ${shlibs:Depends}, ${perl:Depends}, time, pcp (= ${binary:Version}), python3
 Architecture: any
 Suggests: valgrind
 Provides: pcpqa, pcp-gui-testsuite

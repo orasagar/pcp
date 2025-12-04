@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018,2021-2022 Red Hat.
+ * Copyright (c) 2012-2018,2021-2022,2025 Red Hat.
  * Copyright (c) 1995-2001,2003 Silicon Graphics, Inc.  All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -23,6 +23,7 @@
  * appl5	PDU stats after config file processed
  * appl6	pass0 and name cache
  * appl7	skip pass0 ... pass0() becomes a NOOP
+ * appl8	hist_hash updates and queries
  */
 
 #include <limits.h>
@@ -36,10 +37,10 @@ __pmArchCtl	archctl;
 int		exit_samples = -1;       /* number of samples 'til exit */
 __int64_t	exit_bytes = -1;         /* number of bytes 'til exit */
 __int64_t	vol_bytes;		 /* total in earlier volumes */
-struct timeval  exit_time;               /* time interval 'til exit */
+struct timespec exit_time;               /* time interval 'til exit */
 int		vol_switch_samples = -1; /* number of samples 'til vol switch */
 __int64_t	vol_switch_bytes = -1;   /* number of bytes 'til vol switch */
-struct timeval	vol_switch_time;         /* time interval 'til vol switch */
+struct timespec	vol_switch_time;         /* time interval 'til vol switch */
 int		vol_samples_counter;     /* Counts samples - reset for new vol*/
 int		vol_switch_afid = -1;    /* afid of event for vol switch */
 int		vol_switch_flag;         /* sighup received - switch vol now */
@@ -59,15 +60,16 @@ char		*pmcd_host_conn;
 char		*pmcd_host_label;
 int		host_context = PM_CONTEXT_HOST;	 /* pmcd / local context mode */
 int		archive_version;	/* Type of archive to create by default */
-int		linger = 0;		/* linger with no tasks/events */
-int		notify_service_mgr = 0;	/* notify service manager when we're ready (daemon mode only) */
-int		pmlogger_reexec = 0;	/* set when __PMLOGGER_REEXEC is set in the environment */
-char		*last_timezone = NULL;	/* local timezone & offset ([+-]hhmm) */
+int		linger;			/* linger with no tasks/events */
+int		notify_service_mgr;	/* notify service manager when we're ready (daemon mode only) */
+int		pmlogger_reexec;	/* set when __PMLOGGER_REEXEC is set in the environment */
+char		*last_timezone;		/* local timezone & offset ([+-]hhmm) */
 int		pmlc_ipc_version = LOG_PDU_VERSION;
 int		rflag;			/* report sizes */
 int		Cflag;			/* parse config and exit */
 __pmTimestamp	epoch;
 struct timeval	delta = { 60, 0 };	/* default logging interval */
+struct logpush	remote;			/* HTTP client info for remote push */
 int		sig_code;		/* caught signal */
 int		qa_case;		/* QA error injection state */
 char		*note;			/* note for port map file */
@@ -86,6 +88,12 @@ static char	*folio_name = "<unknown>";
 static char	*dialog_title = "PCP Archive Recording Session";
 static int	sep;
 
+static pmLogWriteCallBack local_write;
+static pmLogFlushCallBack local_flush;
+static pmLogResetCallBack local_reset;
+static pmLogTellCallBack  local_tell;
+
+
 void
 run_done(int sts, char *msg)
 {
@@ -101,9 +109,26 @@ run_done(int sts, char *msg)
 	fputc('\n', stderr);
     }
 
-    if ((lsts = do_epilogue()) < 0)
-	fprintf(stderr, "Warning: problem writing archive epilogue: %s\n",
-	    pmErrStr(lsts));
+    if (last_log_offset >= __pmLogLabelSize(archctl.ac_log)) {
+	/* prologue was written, so add epilogue */
+	if ((lsts = do_epilogue()) < 0)
+	    fprintf(stderr, "Warning: problem writing archive epilogue: %s\n",
+		pmErrStr(lsts));
+    }
+    else {
+	/* 
+	 * if the prologue was not written, then remove all the
+	 * archive files as this archive never got started ...
+	 * no need to check for errors here
+	 */
+	char	path[MAXPATHLEN];
+	pmsprintf(path, sizeof(path), "%s.0", archName);
+	unlink(path);
+	pmsprintf(path, sizeof(path), "%s.meta", archName);
+	unlink(path);
+	pmsprintf(path, sizeof(path), "%s.index", archName);
+	unlink(path);
+    }
 
     if (msg != NULL)
 	pmNotifyErr(LOG_INFO, "pmlogger: %s, %s\n", msg, log_switch_flag ? "reexec" : "exiting");
@@ -116,18 +141,27 @@ run_done(int sts, char *msg)
      * _before_ the last log record
      */
     if (last_stamp.sec != 0) {
-	if (last_log_offset < __pmLogLabelSize(archctl.ac_log))
-	    fprintf(stderr, "run_done: Botch: last_log_offset = %ld\n", (long)last_log_offset);
-	__pmFseek(archctl.ac_mfp, last_log_offset, SEEK_SET);
-	__pmLogPutIndex(&archctl, &last_stamp);
+	if (last_log_offset < __pmLogLabelSize(archctl.ac_log)) {
+	    /*
+	     * no prologue => no archive label record => no temporal
+	     * index
+	     */
+	    ;
+	}
+	else {
+	    archctl.ac_reset_cb(&archctl, PM_LOG_VOL_CURRENT, last_log_offset, pmGetProgname());
+	    __pmLogPutIndex(&archctl, &last_stamp);
+	}
     }
 
     /*
      * close the archive
      */
-    __pmFclose(archctl.ac_mfp);
-    __pmFclose(archctl.ac_log->tifp);
-    __pmFclose(archctl.ac_log->mdfp);
+    if (!remote.conn) {
+	__pmFclose(archctl.ac_mfp);
+	__pmFclose(archctl.ac_log->tifp);
+	__pmFclose(archctl.ac_log->mdfp);
+    }
 
     if (log_switch_flag) {
     	/*
@@ -296,7 +330,7 @@ do_dialog(char cmd)
 	/* hack is close enough! */
 	now = 1;
 
-    archsize = vol_bytes + __pmFtell(archctl.ac_mfp);
+    archsize = vol_bytes + archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, pmGetProgname());
 
     nchar = add_msg(&p, 0, "");
     p[0] = '\0';
@@ -490,7 +524,7 @@ static pmLongOptions longopts[] = {
 static pmOptions opts = {
     .short_options = "c:Cd:D:h:H:I:l:K:Lm:Nn:op:Prs:T:t:uU:v:V:x:y?",
     .long_options = longopts,
-    .short_usage = "[options] archive",
+    .short_usage = "[options] [archive]",
 };
 
 static FILE *
@@ -792,6 +826,79 @@ control_port_ready(void)
     }
 }
 
+static int
+label_callback(const __pmArchCtl *acp, int volume, void *buffer, size_t length,
+		const char *caller)
+{
+    /* label is sent once and an identifier is returned */
+    if (remote.client && remote.log == 0) {
+	if (remote_label(acp, volume, buffer, length, caller) < 0) {
+	    run_done(0, "Remote push recording failed to start");
+	    /*NOTREACHED*/
+	}
+    }
+    if (remote.conn)
+	return 0;
+    return local_write(acp, volume, buffer, length, caller);
+}
+
+static int
+write_callback(const __pmArchCtl *acp, int volume, void *buffer, size_t length,
+		const char *caller)
+{
+    if (remote.client && remote.log != 0) {
+	if (remote_write(acp, volume, buffer, length, caller) < 0) {
+	    time_t now = time(NULL);
+	    fprintf(stderr, "%s: lost pmproxy %s connection at %s",
+			    pmGetProgname(), remote.conn, ctime(&now));
+	    /* if HTTP connection fails, we must restart pmlogger */
+	    remote.log = 0;
+	    run_done(0, "Remote push recording terminated");
+	    /*NOTREACHED*/
+	}
+    }
+    if (remote.conn)
+	return 0;
+    return local_write(acp, volume, buffer, length, caller);
+}
+
+static int
+flush_callback(const __pmArchCtl *acp, int volume, const char *caller)
+{
+    if (remote.conn)
+	return 0;
+    return local_flush(acp, volume, caller);
+}
+
+static void
+reset_callback(const __pmArchCtl *acp, int volume, long offset, const char *caller)
+{
+    if (remote.conn) {
+	if (volume == PM_LOG_VOL_META)
+	    remote.total_meta = offset;
+	else if (volume == PM_LOG_VOL_TI)
+	    remote.total_index = offset;
+	else
+	    remote.total_volume = offset;
+    } else {
+	local_reset(acp, volume, offset, caller);
+    }
+}
+
+static off_t
+tell_callback(const __pmArchCtl *acp, int volume, const char *caller)
+{
+    if (remote.conn) {
+	if (volume == PM_LOG_VOL_META)
+	    return (long)remote.total_meta;
+	else if (volume == PM_LOG_VOL_TI)
+	    return (long)remote.total_index;
+	else
+	    return (long)remote.total_volume;
+    }
+    return local_tell(acp, volume, caller);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -807,21 +914,22 @@ main(int argc, char **argv)
     int			i;
     int			suff;		/* for -NN */
     int			make_uniq = 0;	/* set if -NN suffix regime is in play */
+    int			niter;
     task_t		*tp;
     optcost_t		ocp;
     char		*p;
     char		*runtime = NULL;
     int	    		ctx;		/* handle corresponding to ctxp below */
     __pmContext  	*ctxp;		/* pmlogger has just this one context */
-    int			niter;
     pid_t               target_pid = 0;
     int			exit_code = 0;
     char		*exit_msg;
     const char		*names[2] = { "pmcd.timezone", "pmcd.zoneinfo" };;
     pmID		pmids[2];
-    pmHighResResult	*resp;
+    pmResult		*resp;
     pmValueSet		*vp;
     struct timespec	myepoch;
+    struct timespec	ts;
     struct timeval	nowait = {0, 0};
     FILE		*fp;		/* pipe from pmcpp */
 #ifdef HAVE___EXECUTABLE_START
@@ -846,7 +954,7 @@ main(int argc, char **argv)
     if ((endnum = pmGetOptionalConfig("PCP_ARCHIVE_VERSION")) != NULL)
 	archive_version = atoi(endnum);
     else
-	archive_version = PM_LOG_VERS02;	/* safe fallback */
+	archive_version = PM_LOG_VERS03;
 
     while ((c = pmgetopt_r(argc, argv, &opts)) != EOF) {
 	switch (c) {
@@ -1013,11 +1121,12 @@ main(int argc, char **argv)
             break;
 
 	case 't':		/* change default logging interval */
-	    if (pmParseInterval(opts.optarg, &delta, &p) < 0) {
+	    if (pmParseInterval(opts.optarg, &ts, &p) < 0) {
 		pmprintf("%s: illegal -t argument\n%s", pmGetProgname(), p);
 		free(p);
 		opts.errors++;
 	    }
+	    pmtimespecTotimeval(&ts, &delta);
 	    break;
 
 	case 'U':		/* run as named user */
@@ -1111,6 +1220,10 @@ main(int argc, char **argv)
 	exit(1);
     }
 
+    /* pmlogger remote push HTTP server mode - no local archive */
+    if (Cflag == 0 && strncmp(argv[opts.optind], "http://", 7) == 0)
+	remote.conn = argv[opts.optind];
+
     if (getenv("__PMLOGGER_REEXEC") != NULL) {
 	/*
 	 * We have been re-exec'd. See run_done(). This flag indicates
@@ -1165,7 +1278,7 @@ main(int argc, char **argv)
     if (pmDebugOptions.appl4)
 	pmNotifyErr(LOG_INFO, "Signal handlers installed");
 
-    if (Cflag == 0) {
+    if (Cflag == 0 && !remote.conn) {
 	/* base name for archive is here ... */
 	if ((archName = malloc(MAXPATHLEN+1)) == NULL) {
 	    pmNoMem("main: archName", strlen(argv[opts.optind])+1, PM_FATAL_ERR);
@@ -1379,14 +1492,36 @@ main(int argc, char **argv)
     if (pmcd_host_label != NULL)
 	pmcd_host = pmcd_host_label;
 
-    archctl.ac_log = &logctl;
+    if (remote.conn != NULL) {
+	remote.client = pmhttpNewClient();
+	if (remote_ping() < 0) /* check for support, perform DNS resolution */
+	    exit(1);
+    }
+
+    __pmLogWriterInit(&archctl, &logctl);
+    /* keep handy the libpcp write calls */
+    local_write = archctl.ac_write_cb;
+    local_flush = archctl.ac_flush_cb;
+    local_reset = archctl.ac_reset_cb;
+    local_tell = archctl.ac_tell_cb;
+    /* switch in dual local+remote calls */
+    archctl.ac_label_cb = label_callback;
+    archctl.ac_write_cb = write_callback;
+    archctl.ac_flush_cb = flush_callback;
+    archctl.ac_reset_cb = reset_callback;
+    archctl.ac_tell_cb = tell_callback;
+
+    /* setup in-memory libpcp structures safely, without creating files */
+    if (remote.conn)
+	sts = __pmLogCreateLabel(pmcd_host, archive_version, &logctl);
 
     /*
      * If we reexec quickly then archBase will be the same as the
      * previous iteration, and if this happens use a -NN suffix to make
      * archName different, ... but only if make_uniq is set
      */
-    for (suff = -1; suff < 99; suff++) { /* limit of 100 retries */
+    suff = remote.conn ? 99 : -1;
+    for (; suff < 99; suff++) { /* limit of 100 retries */
 	int	dirlen;
 	/*
 	 * set up archName with directory prefix (if given) with
@@ -1437,7 +1572,7 @@ main(int argc, char **argv)
     if (sts >= 0)
 	sts = pmLookupName(2, names, pmids);
     if (sts >= 0)
-	sts = pmFetchHighRes(2, pmids, &resp);
+	sts = pmFetch(2, pmids, &resp);
     if (sts >= 0) {
 	vp = resp->vset[0];
 	if (vp->numval > 1) { /* pmcd.zoneinfo present */
@@ -1449,7 +1584,12 @@ main(int argc, char **argv)
 	    if (logctl.label.timezone)
 		free(logctl.label.timezone);
 	    logctl.label.timezone = strdup(vp->vlist[0].value.pval->vbuf);
-	    /* prefer to use remote time to avoid clock drift problems */
+	    /*
+	     * prefer to use remote time to avoid clock drift problems
+	     * ... this is the old logic and fallback, the epoch will
+	     * be reset using the timestamp in the first valid pmResult
+	     * (after the prologue) written to the archive
+	     */
 	    epoch.sec = resp->timestamp.tv_sec;
 	    epoch.nsec = resp->timestamp.tv_nsec;
 	    if (! use_localtime)
@@ -1460,7 +1600,7 @@ main(int argc, char **argv)
 		    "main: Could not get timezone from host %s\n",
 		    pmcd_host);
 	}
-	pmFreeHighResResult(resp);
+	pmFreeResult(resp);
     }
 
     /* do ParseTimeWindow stuff for -T */
@@ -1480,7 +1620,7 @@ main(int argc, char **argv)
         start = now_tv;
         end.tv_sec = PM_MAX_TIME_T;
         end.tv_usec = 0;
-        sts = __pmParseTime(runtime, &start, &end, &res_end, &err_msg);
+        sts = __pmtimevalParse(runtime, &start, &end, &res_end, &err_msg);
         if (sts < 0) {
 	    fprintf(stderr, "%s: illegal -T argument\n%s", pmGetProgname(), err_msg);
             exit(1);
@@ -1494,7 +1634,8 @@ main(int argc, char **argv)
         last_stamp.nsec = res_end.tv_usec * 1000;
     }
 
-    fprintf(stderr, "Archive basename: %s\n", archName);
+    if (!remote.conn)
+	fprintf(stderr, "Archive basename: %s\n", archName);
 
     if (notify_service_mgr && !pmlogger_reexec) {
 	/*
@@ -1533,9 +1674,11 @@ main(int argc, char **argv)
 	__pmFD_SET(rsc_fd, &fds);
     numfds = maxfd() + 1;
 
+#if 0
     if ((sts = do_prologue()) < 0)
 	fprintf(stderr, "Warning: problem writing archive prologue: %s\n",
 	    pmErrStr(sts));
+#endif
 
     sts = 0;		/* default exit status */
 
@@ -1543,14 +1686,20 @@ main(int argc, char **argv)
     __pmAFunblock();
 
     /* create the Latest folio */
-    if (isdaemon)
+    if (isdaemon && !remote.conn)
 	updateLatestFolio(pmcd_host, archName);
 
-    if (vol_switch_time.tv_sec > 0)
-	vol_switch_afid = __pmAFregister(&vol_switch_time, NULL, 
+    if (vol_switch_time.tv_sec > 0) {
+	struct timeval temp;
+	pmtimespecTotimeval(&vol_switch_time, &temp);
+	vol_switch_afid = __pmAFregister(&temp, NULL, 
 					 vol_switch_callback);
-    if (exit_time.tv_sec > 0)
-	__pmAFregister(&exit_time, NULL, run_done_callback);
+    }
+    if (exit_time.tv_sec > 0) {
+	struct timeval temp;
+	pmtimespecTotimeval(&exit_time, &temp);
+	__pmAFregister(&temp, NULL, run_done_callback);
+    }
 
     for ( ; ; ) {
 	int		nready;
@@ -1725,7 +1874,7 @@ newvolume(int vol_switch_type)
     };
 
     vol_samples_counter = 0;
-    vol_bytes += __pmFtell(archctl.ac_mfp);
+    vol_bytes += archctl.ac_tell_cb(&archctl, PM_LOG_VOL_CURRENT, pmGetProgname());
     if (exit_bytes != -1) {
         if (vol_bytes >= exit_bytes) 
 	    run_done(0, "Byte limit reached");
@@ -1739,18 +1888,28 @@ newvolume(int vol_switch_type)
      * volume switch event.
      */
     if (vol_switch_afid >= 0 && vol_switch_type != VOL_SW_TIME) {
-      __pmAFunregister(vol_switch_afid);
-      vol_switch_afid = __pmAFregister(&vol_switch_time, NULL,
+	struct timeval temp;
+	pmtimespecTotimeval(&vol_switch_time, &temp);
+        __pmAFunregister(vol_switch_afid);
+        vol_switch_afid = __pmAFregister(&temp, NULL,
                                    vol_switch_callback);
     }
 
-    if ((newfp = __pmLogNewFile(archName, nextvol)) != NULL) {
+    if (remote.conn) {
+	logctl.label.vol = archctl.ac_curvol = nextvol;
+	time(&now);
+	fprintf(stderr, "New log volume %d, via %s at %s",
+		nextvol, vol_sw_strs[vol_switch_type], ctime(&now));
+	return nextvol;
+    }
+    else if ((newfp = __pmLogNewFile(archName, nextvol)) != NULL) {
 	if (logctl.state == PM_LOG_STATE_NEW) {
 	    /*
 	     * nothing has been logged as yet, force out the label records
 	     */
 	    __pmGetTimestamp(&last_stamp);
 	    logctl.label.start = last_stamp;	/* struct assignment */
+
 	    logctl.label.vol = PM_LOG_VOL_TI;
 	    __pmLogWriteLabel(logctl.tifp, &logctl.label);
 	    logctl.label.vol = PM_LOG_VOL_META;

@@ -19,22 +19,29 @@ include $(TOPDIR)/src/include/builddefs
 
 INIH_HFILES = ini.h
 SDSH_HFILES = sds.h sdsalloc.h
+USDT_HFILES = usdt.h
+VENDORED_HFILES = $(INIH_HFILES) $(SDSH_HFILES) $(USDT_HFILES)
 EXTERNAL_HFILES = dict.h
 HFILES = pmapi.h impl.h pmda.h pmtime.h pmdaroot.h pmafm.h \
 	 trace.h trace_dev.h mmv_stats.h mmv_dev.h import.h \
-	 config32.h config64.h platform32.h platform64.h \
 	 pmjson.h pmhttp.h pmdbg.h pmwebapi.h deprecated.h \
 	 ini.h sds.h dict.h archive.h
-INFILES = config.h.in configsz.h.in platform_defs.h.in platformsz.h.in
-CONFFILES = config.h configsz.h platform_defs.h platformsz.h
+INFILES = config.h.in platform_defs.h.in
+CONFFILES = config.h platform_defs.h
+ifeq "$(ENABLE_MULTILIB)" "true"
+HFILES += config32.h config64.h platform32.h platform64.h
+else
+INFILES += configsz.h.in platformsz.h.in
+CONFFILES += configsz.h platformsz.h
+endif
 GENERATED_HFILES = $(CONFFILES)
 NOSHIP_HFILES = libpcp.h sdsalloc.h
 
-LDIRT = $(GENERATED_HFILES) $(INIH_HFILES) $(SDSH_HFILES) $(EXTERNAL_HFILES)
+LDIRT = $(GENERATED_HFILES) $(VENDORED_HFILES) $(EXTERNAL_HFILES)
 
 default :: default_pcp
 
-default_pcp : $(HEADERS) $(GENERATED_HFILES) $(INIH_HFILES) $(SDSH_HFILES) $(EXTERNAL_HFILES)
+default_pcp : $(HEADERS) $(GENERATED_HFILES) $(VENDORED_HFILES) $(EXTERNAL_HFILES)
 
 include $(BUILDRULES)
 
@@ -44,6 +51,8 @@ $(INIH_HFILES):
 	$(LN_S) -f $(TOPDIR)/vendor/github.com/benhoyt/inih/$@ .
 $(SDSH_HFILES):
 	$(LN_S) -f $(TOPDIR)/vendor/github.com/redis/hiredis/$@ .
+$(USDT_HFILES):
+	$(LN_S) -f $(TOPDIR)/vendor/github.com/libbpf/usdt/$@ .
 
 install :: default_pcp install_pcp
 

@@ -180,6 +180,8 @@ const MeterClass* const Platform_meterTypes[] = {
    &LeftCPUs8Meter_class,
    &RightCPUs8Meter_class,
    &BlankMeter_class,
+   &DiskIORateMeter_class,
+   &DiskIOTimeMeter_class,
    &DiskIOMeter_class,
    &NetworkIOMeter_class,
    &FileDescriptorMeter_class,
@@ -512,8 +514,7 @@ void Platform_getBattery(double* percent, ACPresence* isOnAC) {
          *isOnAC = isConnected ? AC_PRESENT : AC_ABSENT;
       }
    }
-
-   *percent = ((double)totalCharge / (double)totalCapacity) * 100.0;
+   *percent = totalCapacity > 0 ? ((double)totalCharge / (double)totalCapacity) * 100.0 : NAN;
 
 error:
    if (fd != -1)
